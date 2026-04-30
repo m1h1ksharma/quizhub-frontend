@@ -1,8 +1,7 @@
 import axios from "axios";
 
-// Create React App mein 'process.env.REACT_APP_...' use hota hai.
-// Agar environment variable nahi milta, toh humne fallback (default) URL bhi de diya hai.
-const API_BASE_URL = process.env.REACT_APP_API_URL || "https://quizhub-backend-fesf.onrender.com";
+// Environment variable check karega, nahi toh default backend URL use karega
+const API_BASE_URL = process.env.REACT_APP_API_URL || "https://quizhub-backend-fesf.onrender.com/api";
 
 const API = axios.create({
   baseURL: API_BASE_URL,
@@ -15,11 +14,9 @@ const API = axios.create({
 API.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
-
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = `Bearer ${token}`; // Backticks use kiye hain string interpolation ke liye
     }
-
     return config;
   },
   (error) => {
@@ -27,7 +24,7 @@ API.interceptors.request.use(
   }
 );
 
-// Response Interceptor: Agar 401 (Unauthorized) aaye toh login par bhej de
+// Response Interceptor: 401 Unauthorized hone par login par bhej dega
 API.interceptors.response.use(
   (response) => response,
   (error) => {
