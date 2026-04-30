@@ -20,7 +20,7 @@ function StudentDashboard() {
   const rawName = localStorage.getItem("userName") || "Student";
   const userName = rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase();
 
-  // 1. Success Toast Logic
+  // 1. Success Toast Logic (With Updated CSS)
   useEffect(() => {
     if (location.state?.quizSubmitted) {
       Swal.fire({
@@ -31,6 +31,10 @@ function StudentDashboard() {
         showConfirmButton: false,
         timer: 3000,
         timerProgressBar: true,
+        customClass: {
+          popup: 'swal-custom-popup',
+          title: 'swal-custom-title'
+        }
       });
       window.history.replaceState({}, document.title);
     }
@@ -45,7 +49,6 @@ function StudentDashboard() {
     const checkStatus = async () => {
       try {
         const res = await API.get("/student/check-status");
-        // Yahan ensure kar rhe hain ki data sahi se set ho
         setStatus({
           attempted: res.data.attempted || false,
           round: res.data.round || "Assessment Round"
@@ -53,7 +56,7 @@ function StudentDashboard() {
       } catch (err) {
         if (err.response?.status === 401) navigate("/login");
       } finally {
-        setTimeout(() => setLoading(false), 600);
+        setTimeout(() => setLoading(false), 800); // Shandaar feel ke liye thoda delay
       }
     };
     checkStatus();
@@ -76,10 +79,14 @@ function StudentDashboard() {
     return "Good Evening";
   };
 
+  // Modern Loading Screen Fix
   if (loading) return (
-    <div className="loaderPage">
-      <div className="loaderRing"></div>
-      <p>Loading Dashboard...</p>
+    <div className={`loaderPage ${darkMode ? 'dark' : 'light'}`}>
+      <div className="loaderContainer">
+        <div className="loaderRing"></div>
+        <div className="loaderDot"></div>
+      </div>
+      <p className="loaderText">Calibrating Dashboard...</p>
       <Styles darkMode={darkMode} />
     </div>
   );
@@ -112,9 +119,10 @@ function StudentDashboard() {
       <section className="mainWrap">
         <div className="mainCard">
           {status.attempted ? (
-            /* Case 1: Quiz Already Done */
             <div className="fade-in">
-              <FaCheckCircle size={72} color="#10b981" />
+              <div className="successIconContainer">
+                 <FaCheckCircle size={80} className="successTick" />
+              </div>
               <h1 className="heroTitle">Quiz Submitted</h1>
               <p className="heroSub">
                 Your response for <b>{status.round}</b> has been saved.
@@ -123,7 +131,6 @@ function StudentDashboard() {
               </p>
             </div>
           ) : (
-            /* Case 2: Welcome Screen / Start Quiz */
             <div className="fade-in">
               <div className="liveBadge"><FaRocket /> Live Assessment</div>
               <h1 className="heroTitle">{getGreeting()}, {userName.split(" ")[0]}</h1>
@@ -173,9 +180,41 @@ function Styles({ darkMode }) {
   return (
     <style>{`
       *{ margin:0; padding:0; box-sizing:border-box; }
-      body{ font-family: 'Inter', sans-serif; background: ${darkMode ? '#0f172a' : '#f8fafc'}; }
+      body{ font-family: 'Inter', sans-serif; background: ${darkMode ? '#0f172a' : '#f8fafc'}; overflow-x: hidden; }
       
       .dashboard{ min-height:100vh; position:relative; overflow-x:hidden; transition: background 0.4s; }
+
+      /* Loader Fix */
+      .loaderPage {
+        height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;
+        background: ${darkMode ? '#0f172a' : '#f8fafc'};
+      }
+      .loaderContainer { position: relative; width: 80px; height: 80px; }
+      .loaderRing {
+        width: 100%; height: 100%; border: 4px solid ${darkMode ? '#1e293b' : '#e2e8f0'};
+        border-top: 4px solid #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;
+      }
+      .loaderDot {
+        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        width: 15px; height: 15px; background: #3b82f6; border-radius: 50%;
+        animation: pulse 1.5s ease-in-out infinite;
+      }
+      .loaderText { margin-top: 20px; font-weight: 700; color: ${darkMode ? '#94a3b8' : '#64748b'}; letter-spacing: 1px; }
+      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      @keyframes pulse { 0%, 100% { transform: translate(-50%, -50%) scale(0.5); opacity: 0.5; } 50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; } }
+
+      /* SweetAlert Modern CSS */
+      .swal-custom-popup {
+        background: ${darkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)'} !important;
+        backdrop-filter: blur(10px) !important;
+        border-radius: 20px !important;
+        border: 1px solid ${darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'} !important;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.1) !important;
+      }
+      .swal-custom-title {
+        color: ${darkMode ? '#fff' : '#1e293b'} !important;
+        font-size: 16px !important; font-weight: 700 !important;
+      }
 
       /* Background Gradients */
       .light{ background:linear-gradient(135deg,#eff6ff,#ffffff,#dbeafe,#eef2ff); color:#111827; }
@@ -224,6 +263,10 @@ function Styles({ darkMode }) {
       .primaryBtn{ border:none; padding:16px 35px; border-radius:16px; font-weight:800; cursor:pointer; transition:0.3s; font-size:16px; background:linear-gradient(135deg,#3b82f6,#8b5cf6); color:#fff; box-shadow: 0 10px 25px rgba(59,130,246,0.3); }
       .primaryBtn:hover{ transform:translateY(-5px); box-shadow: 0 15px 30px rgba(59,130,246,0.4); }
 
+      /* Success Icon Animation */
+      .successTick { animation: scaleIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+      @keyframes scaleIn { from { transform: scale(0); } to { transform: scale(1); } }
+
       /* Modal */
       .overlay{ position:fixed; inset:0; background:rgba(0,0,0,0.7); backdrop-filter: blur(8px); display:flex; justify-content:center; align-items:center; padding:20px; z-index:1000; }
       .modalBox{ width:100%; max-width:480px; padding:40px; border-radius:28px; text-align: center; position:relative; }
@@ -239,15 +282,9 @@ function Styles({ darkMode }) {
       .fade-in { animation: fadeIn 0.8s ease-out forwards; }
       @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 
-      /* Mobile Patch */
       @media(max-width:768px){
-        .navbar { padding: 0 20px; }
-        .logo { font-size: 18px; }
-        .hide-mobile { display: none; }
         .heroTitle { font-size: 32px; }
-        .heroSub { font-size: 15px; }
-        .mainCard { padding: 40px 20px; margin: 0 10px; }
-        .modalBox { padding: 30px 20px; width: 95%; }
+        .hide-mobile { display: none; }
         .modalBtns { flex-direction: column; }
         .cancelBtn { order: 2; }
         .modalStartBtn { order: 1; }
