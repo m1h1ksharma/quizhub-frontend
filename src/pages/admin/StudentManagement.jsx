@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from "react";
 import API from "../../api/axios";
-import Swal from "sweetalert2"; 
-import { 
-  FaSearch, FaUndo, FaSync, FaFilter, FaUserGraduate, FaPhoneAlt, FaFlag 
+import Swal from "sweetalert2";
+import {
+  FaSearch, FaUndo, FaSync, FaFilter, FaUserGraduate, FaPhoneAlt, FaFlag
 } from "react-icons/fa";
 import LoadingLoader from "../../components/LoadingLoader";
 
 function StudentManagement() {
   const [students, setStudents] = useState([]);
-  const [activeRounds, setActiveRounds] = useState([]); 
+  const [activeRounds, setActiveRounds] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [roundFilter, setRoundFilter] = useState("all"); 
+  const [roundFilter, setRoundFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -24,14 +24,19 @@ function StudentManagement() {
   const fetchData = async () => {
     try {
       setLoading(true);
+      // FIX: Added leading slashes to paths
       const [res, roundsRes] = await Promise.all([
-        API.get("admin/results/all"),
-        API.get("admin/questions/rounds") 
+        API.get("/admin/results/all"),
+        API.get("/admin/questions/rounds")
       ]);
       setStudents(res.data || []);
-      setActiveRounds(roundsRes.data || []); 
+      setActiveRounds(roundsRes.data || []);
     } catch (err) {
       console.error("Fetch failed", err);
+      // Unauthorized check
+      if (err.response?.status === 403) {
+        console.error("DEBUG: Admin access denied. Check your token or role.");
+      }
     } finally {
       setLoading(false);
     }
@@ -56,9 +61,7 @@ function StudentManagement() {
       position: 'bottom-end',
       showConfirmButton: false,
       timer: 2000,
-      timerProgressBar: true,
-      scrollbarPadding: false,
-      customClass: { popup: 'swal-toast-popup' }
+      timerProgressBar: true
     });
     Toast.fire({ icon, title: msg });
   };
@@ -74,9 +77,10 @@ function StudentManagement() {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          await API.delete(`admin/delete-result/${id}`);
+          // FIX: Added leading slash[cite: 4]
+          await API.delete(`/admin/delete-result/${id}`);
           showToast('Access Reset Successful');
-          fetchData(); 
+          fetchData();
         } catch (err) {
           showToast('Operation Failed', 'error');
         }
@@ -89,8 +93,11 @@ function StudentManagement() {
     const mobile = s.studentMobile ? s.studentMobile : "";
     const round = s.quizRound ? s.quizRound : "";
     const search = searchTerm.toLowerCase();
-    return (name.includes(search) || mobile.includes(search)) && 
-           (roundFilter === "all" ? activeRounds.includes(round) : round === roundFilter);
+
+    const matchesSearch = name.includes(search) || mobile.includes(search);
+    const matchesRound = roundFilter === "all" ? true : round === roundFilter;
+
+    return matchesSearch && matchesRound;
   });
 
   if (loading) return <LoadingLoader message="Syncing Candidate Database..." type="scan" />;
@@ -100,11 +107,9 @@ function StudentManagement() {
       <div style={styles.bgCircleLeft}></div>
       <div style={styles.bgCircleRight}></div>
 
-      {/* HEADER SECTION */}
-      <div style={{...styles.header, flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'center'}}>
-        <div style={{zIndex: 10}}>
-          {/* 🔥 "Student Insights" replaced with "Candidate Monitor" */}
-          <h1 style={styles.mainTitle}>Candidate <span style={{color: '#2563eb'}}>Monitor</span></h1>
+      <div style={{ ...styles.header, flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'center' }}>
+        <div style={{ zIndex: 10 }}>
+          <h1 style={styles.mainTitle}>Candidate <span style={{ color: '#2563eb' }}>Monitor</span></h1>
           <p style={styles.subtitleText}>Tracking <b>{filteredStudents.length}</b> active participants</p>
         </div>
         <button onClick={fetchData} className="sync-btn-hover" style={styles.syncBtn}>
@@ -112,19 +117,17 @@ function StudentManagement() {
         </button>
       </div>
 
-      {/* FILTER CONTROLS */}
-      <div style={{...styles.filterRow, flexDirection: isMobile ? 'column' : 'row'}}>
+      <div style={{ ...styles.filterRow, flexDirection: isMobile ? 'column' : 'row' }}>
         <div className="search-box-focus" style={styles.searchBox}>
           <FaSearch color="#cbd5e1" />
-          <input 
-            style={styles.input} 
-            placeholder="Filter by name or contact..." 
+          <input
+            style={styles.input}
+            placeholder="Filter by name or contact..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-
-        <div style={{...styles.dropdownBox, width: isMobile ? '100%' : 'auto'}}>
+        <div style={{ ...styles.dropdownBox, width: isMobile ? '100%' : 'auto' }}>
           <FaFilter color="#2563eb" size={12} />
           <select style={styles.select} value={roundFilter} onChange={(e) => setRoundFilter(e.target.value)}>
             <option value="all">All Active Rounds</option>
@@ -135,9 +138,8 @@ function StudentManagement() {
         </div>
       </div>
 
-      {/* DATA TABLE */}
       <div className="glass-card-table" style={styles.tableCard}>
-        <div style={{overflowX: 'auto'}}> 
+        <div style={{ overflowX: 'auto' }}>
           <table style={styles.table}>
             <thead>
               <tr>
@@ -153,21 +155,21 @@ function StudentManagement() {
                 filteredStudents.map((s) => (
                   <tr key={s.id} className="table-row-hover" style={styles.row}>
                     <td style={styles.td}>
-                      <div style={{fontWeight: '800', color: '#0f172a', letterSpacing: '-0.5px'}}>
+                      <div style={{ fontWeight: '800', color: '#0f172a', letterSpacing: '-0.5px' }}>
                         {s.studentName?.toUpperCase()}
                       </div>
                     </td>
-                    <td style={styles.td}><span style={{color: '#64748b', fontWeight: '600'}}>{s.studentMobile}</span></td>
+                    <td style={styles.td}><span style={{ color: '#64748b', fontWeight: '600' }}>{s.studentMobile}</span></td>
                     <td style={styles.td}><span style={styles.roundBadge}>{s.quizRound}</span></td>
                     <td style={styles.td}>
                       <div style={styles.scoreContainer}>
                         <span style={styles.scoreText}>{s.score}</span>
-                        <span style={styles.totalText}>/ {s.quizLimit || s.totalQuestions || 0}</span>
+                        <span style={styles.totalText}>/ {s.totalQuestions || 0}</span>
                       </div>
                     </td>
                     <td style={styles.td}>
                       <button onClick={() => handleResetAccess(s.id, s.studentName)} className="reset-btn-hover" style={styles.resetBtn}>
-                        <FaUndo size={11}/> Reset
+                        <FaUndo size={11} /> Reset
                       </button>
                     </td>
                   </tr>
@@ -179,30 +181,16 @@ function StudentManagement() {
           </table>
         </div>
       </div>
-      
+
       <style>{`
         .glass-card-table { background: #ffffffcc; backdrop-filter: blur(10px); }
-        .table-row-hover:hover { background: #f8fafc; }
+        .table-row-hover:hover { background: #f8fafc; transition: 0.2s; }
         .sync-btn-hover:hover { background: #f1f5f9 !important; transform: scale(1.02); }
-        .reset-btn-hover:hover { background: #ef4444 !important; color: #fff !important; transform: scale(1.05); }
+        .reset-btn-hover:hover { background: #ef4444 !important; color: #fff !important; transform: scale(1.05); transition: 0.3s; }
         .search-box-focus:focus-within { border-color: #2563eb !important; box-shadow: 0 0 0 4px rgba(37,99,235,0.05); }
-
-        .swal-premium-popup { border-radius: 24px !important; padding: 2.5rem !important; background: #fff !important; border: 1px solid #f1f5f9 !important; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.1) !important; }
-        .swal-premium-title { color: #0f172a !important; font-size: 22px !important; font-weight: 900 !important; letter-spacing: -1px !important; margin-bottom: 12px !important; }
-        .swal-premium-html { color: #64748b !important; font-size: 15px !important; line-height: 1.6 !important; }
-        .swal-premium-confirm { background: #0f172a !important; color: #fff !important; border-radius: 12px !important; padding: 14px 28px !important; font-weight: 700 !important; border: none !important; cursor: pointer; margin-left: 10px !important; }
-        .swal-premium-cancel { background: #f1f5f9 !important; color: #64748b !important; border-radius: 12px !important; padding: 14px 28px !important; font-weight: 700 !important; border: none !important; cursor: pointer; }
-        
-        .swal-toast-popup {
-          border-radius: 15px !important;
-          padding: 12px 20px !important;
-          background: rgba(255, 255, 255, 0.95) !important;
-          backdrop-filter: blur(10px) !important;
-          border: 1px solid #e2e8f0 !important;
-          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05) !important;
-        }
-
-        body.swal2-shown { padding-right: 0 !important; }
+        .swal-premium-popup { border-radius: 24px !important; padding: 2.5rem !important; }
+        .swal-premium-confirm { background: #0f172a !important; color: #fff !important; border-radius: 12px !important; padding: 14px 28px !important; cursor: pointer; }
+        .swal-premium-cancel { background: #f1f5f9 !important; color: #64748b !important; border-radius: 12px !important; padding: 14px 28px !important; cursor: pointer; }
       `}</style>
     </div>
   );
@@ -215,9 +203,9 @@ const styles = {
   header: { display: "flex", justifyContent: "space-between", marginBottom: "35px", position: 'relative', zIndex: 10 },
   mainTitle: { fontSize: '38px', fontWeight: '900', color: '#0f172a', margin: 0, letterSpacing: '-1.5px' },
   subtitleText: { color: "#64748b", fontSize: "14px", marginTop: "5px" },
-  syncBtn: { background: "#fff", border: "1px solid #e2e8f0", padding: "12px 24px", borderRadius: "14px", cursor: "pointer", fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' },
+  syncBtn: { background: "#fff", border: "1px solid #e2e8f0", padding: "12px 24px", borderRadius: "14px", cursor: "pointer", fontWeight: "700", fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' },
   filterRow: { display: "flex", gap: "15px", marginBottom: "30px", position: 'relative', zIndex: 10 },
-  searchBox: { flex: 2, background: "#fff", padding: "12px 20px", borderRadius: "16px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: "12px", transition: '0.3s' },
+  searchBox: { flex: 2, background: "#fff", padding: "12px 20px", borderRadius: "16px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: "12px" },
   dropdownBox: { flex: 1, background: "#fff", padding: "0 15px", borderRadius: "16px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: "10px" },
   input: { border: "none", outline: "none", width: "100%", fontSize: "14px", color: '#1e293b', fontWeight: '500', background: 'transparent' },
   select: { border: "none", outline: "none", width: "100%", height: "50px", fontSize: "13px", fontWeight: '700', background: "transparent", cursor: 'pointer', color: '#1e293b' },
@@ -230,7 +218,7 @@ const styles = {
   totalText: { fontSize: '12px', color: '#94a3b8', marginLeft: '4px', fontWeight: '600' },
   roundBadge: { background: "#eff6ff", color: "#2563eb", padding: "6px 12px", borderRadius: "10px", fontSize: "11px", fontWeight: "800", border: "1px solid #dbeafe", whiteSpace: 'nowrap', textTransform: 'uppercase' },
   resetBtn: { background: "#f8fafc", color: "#94a3b8", border: "none", padding: "10px 16px", borderRadius: "12px", cursor: "pointer", fontWeight: "800", display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', transition: '0.3s' },
-  emptyTd: { padding: '100px 20px', textAlign: 'center', color: '#cbd5e1', fontWeight: '600' },
+  emptyTd: { padding: '100px 20px', textAlign: 'center', color: '#cbd5e1', fontWeight: '600' }
 };
 
 export default StudentManagement;
