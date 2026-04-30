@@ -192,7 +192,7 @@ function QuizSettings() {
                 </div>
               </div>
               <h3 style={styles.roundTitle}>{round.replace("_", " ").toUpperCase()}</h3>
-              <div style={styles.statsBox}> <FaListol /> {totalInRound} Questions Pool</div>
+              <div style={styles.statsBox}> <FaListOl /> {totalInRound} Questions Pool</div>
               <button onClick={() => handleManageClick(round)} className="deploy-btn" style={styles.manageBtn}>
                 Configure Round <FaChevronRight size={12} />
               </button>
@@ -218,7 +218,7 @@ function QuizSettings() {
                   <input type="number" value={settings.timerMinutes} onChange={(e) => setSettings({ ...settings, timerMinutes: e.target.value })} style={styles.inputModal} />
                 </div>
                 <div style={styles.configCardModal}>
-                  <label style={styles.label}><FaListol /> Display Limit</label>
+                  <label style={styles.label}><FaListOl /> Display Limit</label>
                   <input type="number" value={settings.questionLimit} onChange={(e) => setSettings({ ...settings, questionLimit: e.target.value })} style={styles.inputModal} />
                 </div>
               </div>
