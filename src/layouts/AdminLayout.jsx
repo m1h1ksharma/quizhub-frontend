@@ -22,11 +22,11 @@ export function AdminLayout() {
       {/* Main Content Area */}
       <main style={{
         ...styles.mainContent,
-        marginLeft: isMobile ? "0" : "260px", // 🔥 Mobile par margin khatam
-        padding: isMobile ? "80px 15px 20px 15px" : "40px", // 🔥 Top bar ke liye space
+        marginLeft: isMobile ? "0" : "260px", // Mobile par margin khatam[cite: 13]
+        padding: isMobile ? "80px 15px 20px 15px" : "40px", // Top bar ke liye space[cite: 13]
       }}>
         <div style={styles.contentWrapper}>
-          <Outlet />
+          <Outlet /> {/* Saare sub-routes yahan render honge */}
         </div>
       </main>
     </div>
@@ -37,21 +37,19 @@ const styles = {
   layoutContainer: {
     display: "flex",
     minHeight: "100vh",
-    background: "#f8fafc", 
+    background: "#f8fafc",
   },
-  
   mainContent: {
     flex: 1,
     display: "flex",
     flexDirection: "column",
-    minWidth: 0, 
+    minWidth: 0,
     transition: "margin-left 0.3s ease-in-out", // Smooth transition
   },
-
   contentWrapper: {
-    maxWidth: "1200px", 
+    maxWidth: "1200px",
     width: "100%",
-    margin: "0 auto", 
+    margin: "0 auto",
   }
 };
 
