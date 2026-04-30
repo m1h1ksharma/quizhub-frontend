@@ -3,7 +3,7 @@ import API from "../../api/axios";
 import Swal from "sweetalert2";
 import { useNavigate } from "react-router-dom";
 import {
-  FaClock, FaLayerGroup, FaTrash, FaTimes, FaListol, FaPlus,
+  FaClock, FaLayerGroup, FaTrash, FaTimes, FaListOl, FaPlus,
   FaChevronRight, FaShieldAlt, FaRocket, FaBolt
 } from "react-icons/fa";
 import LoadingLoader from "../../components/LoadingLoader";
