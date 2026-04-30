@@ -20,7 +20,7 @@ function StudentDashboard() {
   const rawName = localStorage.getItem("userName") || "Student";
   const userName = rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase();
 
-  // 1. Success Toast Logic (With Updated CSS)
+  // 1. Success Alert / Toast Logic (Custom CSS Integrated)
   useEffect(() => {
     if (location.state?.quizSubmitted) {
       Swal.fire({
@@ -32,8 +32,8 @@ function StudentDashboard() {
         timer: 3000,
         timerProgressBar: true,
         customClass: {
-          popup: 'swal-custom-popup',
-          title: 'swal-custom-title'
+          popup: 'swal-premium-popup',
+          title: 'swal-premium-title'
         }
       });
       window.history.replaceState({}, document.title);
@@ -56,7 +56,8 @@ function StudentDashboard() {
       } catch (err) {
         if (err.response?.status === 401) navigate("/login");
       } finally {
-        setTimeout(() => setLoading(false), 800); // Shandaar feel ke liye thoda delay
+        // Smooth transition ke liye thoda sa delay
+        setTimeout(() => setLoading(false), 800);
       }
     };
     checkStatus();
@@ -79,14 +80,14 @@ function StudentDashboard() {
     return "Good Evening";
   };
 
-  // Modern Loading Screen Fix
+  // Modern Animated Loader
   if (loading) return (
     <div className={`loaderPage ${darkMode ? 'dark' : 'light'}`}>
       <div className="loaderContainer">
         <div className="loaderRing"></div>
         <div className="loaderDot"></div>
       </div>
-      <p className="loaderText">Calibrating Dashboard...</p>
+      <p className="loaderText">Synchronizing Dashboard...</p>
       <Styles darkMode={darkMode} />
     </div>
   );
@@ -120,8 +121,8 @@ function StudentDashboard() {
         <div className="mainCard">
           {status.attempted ? (
             <div className="fade-in">
-              <div className="successIconContainer">
-                 <FaCheckCircle size={80} className="successTick" />
+              <div className="successCircle">
+                 <FaCheckCircle size={80} color="#10b981" />
               </div>
               <h1 className="heroTitle">Quiz Submitted</h1>
               <p className="heroSub">
@@ -189,29 +190,30 @@ function Styles({ darkMode }) {
         height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;
         background: ${darkMode ? '#0f172a' : '#f8fafc'};
       }
-      .loaderContainer { position: relative; width: 80px; height: 80px; }
+      .loaderContainer { position: relative; width: 70px; height: 70px; }
       .loaderRing {
-        width: 100%; height: 100%; border: 4px solid ${darkMode ? '#1e293b' : '#e2e8f0'};
-        border-top: 4px solid #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;
+        width: 100%; height: 100%; border: 5px solid ${darkMode ? '#1e293b' : '#e2e8f0'};
+        border-top: 5px solid #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;
       }
       .loaderDot {
         position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        width: 15px; height: 15px; background: #3b82f6; border-radius: 50%;
+        width: 12px; height: 12px; background: #3b82f6; border-radius: 50%;
         animation: pulse 1.5s ease-in-out infinite;
       }
-      .loaderText { margin-top: 20px; font-weight: 700; color: ${darkMode ? '#94a3b8' : '#64748b'}; letter-spacing: 1px; }
+      .loaderText { margin-top: 25px; font-weight: 700; color: ${darkMode ? '#94a3b8' : '#64748b'}; letter-spacing: 0.5px; font-size: 14px; }
       @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-      @keyframes pulse { 0%, 100% { transform: translate(-50%, -50%) scale(0.5); opacity: 0.5; } 50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; } }
+      @keyframes pulse { 0%, 100% { transform: translate(-50%, -50%) scale(0.6); opacity: 0.5; } 50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; } }
 
-      /* SweetAlert Modern CSS */
-      .swal-custom-popup {
-        background: ${darkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)'} !important;
-        backdrop-filter: blur(10px) !important;
+      /* SweetAlert Modern Alert Styling */
+      .swal-premium-popup {
+        background: ${darkMode ? '#1e293b' : '#ffffff'} !important;
         border-radius: 20px !important;
+        padding: 15px !important;
         border: 1px solid ${darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'} !important;
-        box-shadow: 0 20px 40px rgba(0,0,0,0.1) !important;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.1) !important;
+        backdrop-filter: blur(10px) !important;
       }
-      .swal-custom-title {
+      .swal-premium-title {
         color: ${darkMode ? '#fff' : '#1e293b'} !important;
         font-size: 16px !important; font-weight: 700 !important;
       }
@@ -262,10 +264,6 @@ function Styles({ darkMode }) {
 
       .primaryBtn{ border:none; padding:16px 35px; border-radius:16px; font-weight:800; cursor:pointer; transition:0.3s; font-size:16px; background:linear-gradient(135deg,#3b82f6,#8b5cf6); color:#fff; box-shadow: 0 10px 25px rgba(59,130,246,0.3); }
       .primaryBtn:hover{ transform:translateY(-5px); box-shadow: 0 15px 30px rgba(59,130,246,0.4); }
-
-      /* Success Icon Animation */
-      .successTick { animation: scaleIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-      @keyframes scaleIn { from { transform: scale(0); } to { transform: scale(1); } }
 
       /* Modal */
       .overlay{ position:fixed; inset:0; background:rgba(0,0,0,0.7); backdrop-filter: blur(8px); display:flex; justify-content:center; align-items:center; padding:20px; z-index:1000; }
