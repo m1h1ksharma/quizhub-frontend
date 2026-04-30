@@ -89,7 +89,7 @@ function App() {
         element={
           <div style={styles.errorPage}>
             <h1 style={styles.errorTitle}>404</h1>
-            <h2 style={{color: '#1e293b'}}>Oops! Yeh rasta galat hai...</h2>
+            <h2 style={{color: '#1e293b'}}>Wrong path...</h2>
             <p style={{color: '#64748b'}}>The page you are looking for doesn't exist.</p>
             <button
               onClick={() => (window.location.href = "/")}

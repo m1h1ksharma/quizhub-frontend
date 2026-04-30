@@ -8,7 +8,6 @@ import {
   FaBook, FaIdBadge, FaSignInAlt, FaUserPlus, FaArrowLeft, FaEdit, FaCode, FaCity
 } from "react-icons/fa";
 
-// Data Lists (Same as before)
 const AREA_LIST = ["ASSANDH", "BAGHPAT", "DELHI", "GANAUR", "GHARAUNDA", "GOHANA", "JIND", "KAITHAL", "KARNAL", "KKR", "NILOKHERI-TARAORI", "PANIPAT", "PUNDRI", "ROHTAK", "SAFIDON", "SAMALKHA", "SHAMLI", "SONIPAT", "Others"].sort();
 const COLLEGE_LIST = ["Arya PG College, Panipat", "Baba Fateh Singhji Govt. College, Assandh", "Bhagwan Parshuram College, Kurukshetra", "Chaudhary Ishwar Singh Kanya Mahavidyala, Pundri", "CRA College, Sonipat", "DAV College, Karnal", "DAV College, Pundri", "Dronacharya Degree College, Kurukshetra", "GCW, Rohtak", "Govt. PG College, Panipat", "Govt. College for girls Palwal, Kurukshetra", "Govt. College for women, Rohtak", "Govt. College for Women, Karnal", "Govt. College Women Bastara, Gharaunda", "Govt. College, Bahadurgarh", "Govt. College, Barota", "Govt. College, Gharaunda", "Govt. College, Jind", "Govt. Girls PG College Gohana", "Govt. Pg College, Jind", "Govt College Women, Jind", "Guru Nanak Khalsa College, Karnal", "I.B PG College, Panipat", "Jat College, Kaithal", "PIET, Panipat", "Pt. Chiranji Lal Sharma Govt. College, Karnal", "Pt. Neki Ram Sharma College, Rohtak", "RK PG College, Shamli", "RKSD Evening College Kaithal", "RKSD PG College, Kaithal", "Sh. Lal Nath Hindu College, Rohtak", "Shri Guru Teg Bahadur ji Govt. College, Nilokheri", "Shyam Lal Mukherji College, Delhi", "Vaish Mahila Mahavidyalya, Rohtak", "Others"].sort();
 const SCHOOL_LIST = ["Dyal Singh Public School", "SD Vidya Mandir", "DAV Public School", "O.P. Jindal Modern School", "Delhi Public School (DPS)", "Bal Vikas School", "Tagore Baal Niketan", "St. Theresa's Convent", "Pratap Public School", "Gateway International", "Rishikul Vidyapeeth", "Hindu Vidyapeeth", "Indus Public School", "Heritage International", "RKSD Public School", "Modern School, Delhi", "Ryan International", "Silver Bells, Shamli", "Others"].sort();
@@ -26,7 +25,7 @@ function LoginPage() {
   const [selectedName, setSelectedName] = useState("");
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
-  const [regData, setRegData] = useState({ name: "", fatherName: "", email: "", schoolName: "", city: "", area: "", classLevel: "", stream: "" });
+  const [regData, setRegData] = useState({ name: "", fatherName: "", email: "", schoolName: "", city: "", area: "", classLevel: "12th", stream: "" });
 
   const navigate = useNavigate();
 
@@ -59,37 +58,62 @@ function LoginPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (mode === "register" && step === 1) { setStep(2); return; }
+    
+    // Step 1 validation for Register
+    if (mode === "register" && step === 1) {
+        if(!mobile || mobile.length !== 10) {
+            showToast("Enter a valid 10-digit mobile number", "error");
+            return;
+        }
+        setStep(2); 
+        return; 
+    }
+
     setLoading(true);
     try {
       if (mode === "register") {
-        await API.post("auth/register", { ...regData, mobileNumber: mobile.trim(), password: password.trim(), role: "STUDENT" });
+        const payload = { 
+            ...regData, 
+            mobileNumber: mobile.trim(), 
+            password: password.trim(), 
+            role: "STUDENT" 
+        };
+        // Hit backend
+        await API.post("auth/register", payload);
         showToast('Registration Successful! Login Now');
-        setMode("login"); resetForm();
+        setMode("login"); 
+        resetForm();
       } else {
         const endpoint = isAdmin ? "auth/login-admin" : "auth/login-student";
-        const payload = isAdmin ? { email: email.trim(), password: password.trim() } : { mobileNumber: mobile.trim(), name: selectedName, password: password.trim() };
+        const payload = isAdmin 
+            ? { email: email.trim(), password: password.trim() } 
+            : { mobileNumber: mobile.trim(), name: selectedName, password: password.trim() };
+        
         const res = await API.post(endpoint, payload);
+        
         localStorage.setItem("token", res.data.token);
         localStorage.setItem("role", res.data.role);
         localStorage.setItem("userName", res.data.studentName || res.data.name || selectedName);
+        
         navigate(res.data.role === "ADMIN" ? "/admin/dashboard" : "/student/dashboard");
       }
-    } catch (err) { showToast('Error: Check Credentials', 'error'); }
-    finally { setLoading(false); }
+    } catch (err) {
+      console.error("Submission Error:", err.response?.data || err.message);
+      const errMsg = err.response?.data?.message || 'Error: Check Credentials';
+      showToast(errMsg, 'error'); 
+    } finally {
+      setLoading(false);
+    }
   };
 
   const resetForm = () => {
     setMobile(""); setNames([]); setSelectedName(""); setPassword(""); setEmail(""); setStep(1);
-    setRegData({ name: "", fatherName: "", email: "", schoolName: "", city: "", area: "", classLevel: "", stream: "" });
+    setRegData({ name: "", fatherName: "", email: "", schoolName: "", city: "", area: "", classLevel: "12th", stream: "" });
   };
 
   return (
     <div className="main-viewport">
-      {/* Dynamic Background Layer */}
       <div className="gradient-bg"></div>
-
-      {/* 🔥 RANDOMIZED BUBBLES: Different delays & positions */}
       <ul className="bubbles-container">
         <li className="bubble b1"></li><li className="bubble b2"></li>
         <li className="bubble b3"></li><li className="bubble b4"></li>
@@ -174,19 +198,15 @@ function LoginPage() {
         @keyframes grad { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
         .main-viewport { min-height: 100vh; display: flex; justify-content: center; align-items: center; overflow: hidden; position: relative; }
         .gradient-bg { position: absolute; inset: 0; background: linear-gradient(-45deg, #f8fafc, #eef2ff, #fdf2f8, #f1f5f9); background-size: 400% 400%; animation: grad 15s ease infinite; z-index: 0; }
-        
-        /* 🔥 NATURAL BUBBLES */
         .bubbles-container { position: absolute; inset: 0; z-index: 1; }
         .bubble { position: absolute; list-style: none; background: rgba(37, 99, 235, 0.08); border: 1px solid rgba(255,255,255,0.2); border-radius: 50%; bottom: -150px; animation: floatUp 20s linear infinite; }
         @keyframes floatUp { 0% { transform: translateY(0) rotate(0deg); opacity: 0.8; } 100% { transform: translateY(-1200px) rotate(360deg); opacity: 0; } }
-        
         .b1 { left: 10%; width: 100px; height: 100px; animation-duration: 18s; }
         .b2 { left: 25%; width: 40px; height: 40px; animation-duration: 25s; animation-delay: 2s; }
         .b3 { left: 45%; width: 120px; height: 120px; animation-duration: 22s; animation-delay: 5s; }
         .b4 { left: 60%; width: 70px; height: 70px; animation-duration: 15s; }
         .b5 { left: 80%; width: 150px; height: 150px; animation-duration: 28s; animation-delay: 3s; }
         .b6 { left: 15%; width: 30px; height: 30px; animation-duration: 20s; animation-delay: 7s; }
-        
         .login-card { position: relative; z-index: 10; animation: pop 0.5s ease-out; }
         @keyframes pop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         .form-animation { animation: slide 0.4s ease; }
