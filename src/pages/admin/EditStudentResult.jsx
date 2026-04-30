@@ -26,12 +26,10 @@ function EditStudentResult() {
   useEffect(() => {
     const fetchResult = async () => {
       try {
-        // FIX: Added leading slash and backticks for ID
         const res = await API.get(`/admin/results/${id}`);
         setFormData(res.data);
         setLoading(false);
       } catch (err) {
-        console.error("Fetch Error:", err);
         alert("Result data fetch failed!");
         navigate("/admin/students");
       }
@@ -46,7 +44,6 @@ function EditStudentResult() {
   const handleUpdate = async (e) => {
     e.preventDefault();
     try {
-      // FIX: Added leading slash and backticks for ID
       await API.put(`/admin/update-result/${id}`, formData);
       alert("Student Result Updated!");
       navigate("/admin/students");
@@ -76,7 +73,7 @@ function EditStudentResult() {
               name="studentName"
               value={formData.studentName} 
               onChange={handleChange} 
-              required
+              required 
               style={styles.input} 
             />
           </div>
@@ -87,11 +84,12 @@ function EditStudentResult() {
               name="studentMobile"
               value={formData.studentMobile} 
               onChange={handleChange} 
-              required
+              required 
               style={styles.input} 
             />
           </div>
 
+          {/* Dynamic Grid: Mobile par 1 column, Desktop par 2[cite: 7] */}
           <div style={{ ...styles.grid, gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>
             <div style={styles.inputGroup}>
               <label style={styles.label}>Score</label>
@@ -100,7 +98,7 @@ function EditStudentResult() {
                 name="score"
                 value={formData.score} 
                 onChange={handleChange} 
-                required
+                required 
                 style={styles.input} 
               />
             </div>
@@ -111,7 +109,7 @@ function EditStudentResult() {
                 name="totalQuestions"
                 value={formData.totalQuestions} 
                 onChange={handleChange} 
-                required
+                required 
                 style={styles.input} 
               />
             </div>
@@ -123,7 +121,7 @@ function EditStudentResult() {
               name="quizRound"
               value={formData.quizRound} 
               onChange={handleChange} 
-              required
+              required 
               style={styles.input} 
             />
           </div>

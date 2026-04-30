@@ -28,28 +28,26 @@ function UploadQuestions() {
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener("resize", handleResize);
-    loadInitialData(); // Initial load call
+    loadInitialData();
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      // Sahi endpoints use ho rahe hain
       const [roundsRes, timerRes] = await Promise.all([
         API.get("/admin/questions/rounds"),
-        API.get("/admin/settings/timer")
+        API.get("/admin/settings/timer"),
       ]);
-      
-      if (roundsRes.data) setAvailableRounds(roundsRes.data);
-      if (roundsRes.data?.length > 0) setSelectedRound(roundsRes.data[0]);
-      if (timerRes.data?.timerMinutes) setQuizTimer(timerRes.data.timerMinutes);
+      if (roundsRes.data?.length > 0) {
+        setAvailableRounds(roundsRes.data);
+        setSelectedRound(roundsRes.data[0]);
+      }
+      if (timerRes.data?.timerMinutes) {
+        setQuizTimer(timerRes.data.timerMinutes);
+      }
     } catch (err) {
       console.error("Initial Load Error", err);
-      // Agar 403 aaye toh session clear kar do
-      if (err.response?.status === 403) {
-        // showToast("Unauthorized Access", "error");
-      }
     } finally {
       setLoading(false);
     }
@@ -57,16 +55,19 @@ function UploadQuestions() {
 
   const showToast = (msg, icon = 'success') => {
     const Toast = Swal.mixin({
-      toast: true, position: 'bottom-end', showConfirmButton: false,
-      timer: 2500, timerProgressBar: true
+      toast: true,
+      position: 'bottom-end',
+      showConfirmButton: false,
+      timer: 2500,
+      timerProgressBar: true,
+      customClass: { popup: 'swal-premium-toast' }
     });
     Toast.fire({ icon, title: msg });
   };
 
   const downloadTemplate = () => {
     const templateData = [{
-      content: "Example Question?", optionA: "Opt 1", optionB: "Opt 2", 
-      optionC: "Opt 3", optionD: "Opt 4", correctAns: "A"
+      content: "Example Question?", optionA: "Opt 1", optionB: "Opt 2", optionC: "Opt 3", optionD: "Opt 4", correctAns: "A"
     }];
     const ws = XLSX.utils.json_to_sheet(templateData);
     const wb = XLSX.utils.book_new();
@@ -104,18 +105,13 @@ function UploadQuestions() {
     formData.append("round", target);
     try {
       setLoading(true);
-      await API.post("/admin/questions/upload-excel", formData, {
-        headers: { 'Content-Type': 'multipart/form-data' } // Excel ke liye zaroori hai
-      });
+      await API.post("/admin/questions/upload-excel", formData);
       showToast('Bulk upload successful!');
       setExcelPreview([]);
       setFile(null);
       loadInitialData();
-    } catch (err) {
-      showToast('Upload failed', 'error');
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { showToast('Upload failed', 'error'); }
+    finally { setLoading(false); }
   };
 
   const handleAIGenerate = async () => {
@@ -124,14 +120,13 @@ function UploadQuestions() {
     try {
       const res = await API.post("/admin/questions/ai-generate", aiConfig);
       let data = res.data;
-      if (typeof data === "string") data = JSON.parse(data.replace(/```json|```/g, "").trim());
+      if (typeof data === "string") {
+        data = JSON.parse(data.replace(/```json|```/g, "").trim());
+      }
       setAiPreview(Array.isArray(data) ? data : data.questions || []);
       showToast('AI Synthesis complete');
-    } catch (err) {
-      showToast('AI Engine Error', 'error');
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { showToast('AI Engine Error', 'error'); }
+    finally { setLoading(false); }
   };
 
   const handleAISave = async () => {
@@ -144,11 +139,8 @@ function UploadQuestions() {
       showToast('AI Assets committed');
       setAiPreview([]);
       loadInitialData();
-    } catch (err) {
-      showToast('Cloud sync failed', 'error');
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { showToast('Cloud sync failed', 'error'); }
+    finally { setLoading(false); }
   };
 
   const handleManualSubmit = async (e) => {
@@ -160,11 +152,8 @@ function UploadQuestions() {
       showToast('Asset Archived');
       setManualData({ content: "", optionA: "", optionB: "", optionC: "", optionD: "", correctAns: "A" });
       loadInitialData();
-    } catch (err) {
-      showToast('Add failed', 'error');
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { showToast('Add failed', 'error'); }
+    finally { setLoading(false); }
   };
 
   if (loading) return <LoadingLoader message="Syncing Question Hub..." type="scan" />;
@@ -201,12 +190,7 @@ function UploadQuestions() {
             <div style={styles.cardTitle}><FaClock color="#f59e0b" /> Global Timer</div>
             <div style={styles.timerRow}>
               <input type="number" value={quizTimer} onChange={(e) => setQuizTimer(e.target.value)} style={styles.timerInput} />
-              <button style={styles.timerBtn} onClick={async () => {
-                try {
-                   await API.post("/admin/settings/timer", { minutes: quizTimer });
-                   showToast("Timer Updated");
-                } catch(e) { showToast("Update Failed", "error"); }
-              }}>Update</button>
+              <button style={styles.timerBtn}>Update</button>
             </div>
           </div>
         </div>
@@ -236,12 +220,11 @@ function UploadQuestions() {
                 <p style={styles.formatText}>Columns: <code>content</code>, <code>optionA</code>, <code>optionB</code>, <code>optionC</code>, <code>optionD</code>, <code>correctAns</code> (A/B/C/D)</p>
                 <button onClick={downloadTemplate} style={styles.downloadBtn}><FaDownload /> Download Template</button>
               </div>
-              <div className="dropzone" style={styles.dropZone} onClick={() => document.getElementById('excelInput').click()}>
+              <div className="dropzone" style={styles.dropZone}>
                 <FaCloudUploadAlt size={50} color="#2563eb" />
                 <h3 style={styles.dropTitle}>Dynamic Data Ingestion</h3>
                 <p style={styles.dropText}>Click to browse or drop .xlsx assets</p>
-                <input id="excelInput" type="file" accept=".xlsx,.xls" onChange={handleFileChange} style={{ display: 'none' }} />
-                {file && <p style={{marginTop: '10px', color: '#2563eb', fontWeight: '800'}}>{file.name}</p>}
+                <input type="file" accept=".xlsx,.xls" onChange={handleFileChange} style={styles.fileInput} />
               </div>
               {excelPreview.length > 0 && (
                 <div style={styles.previewBox}>
@@ -249,7 +232,9 @@ function UploadQuestions() {
                   <div className="custom-scroll" style={styles.previewScroll}>
                     <table style={styles.table}>
                       <thead><tr><th style={styles.th}>Question</th><th style={styles.th}>Key</th></tr></thead>
-                      <tbody>{excelPreview.map((r, i) => (<tr key={i}><td style={styles.td}>{r.content?.substring(0, 60)}...</td><td style={styles.td}><span style={styles.keyBadge}>{r.correctAns}</span></td></tr>))}</tbody>
+                      <tbody>{excelPreview.map((r, i) => (
+                        <tr key={i}><td style={styles.td}>{r.content?.substring(0, 60)}...</td><td style={styles.td}><span style={styles.keyBadge}>{r.correctAns}</span></td></tr>
+                      ))}</tbody>
                     </table>
                   </div>
                   <button onClick={handleExcelUpload} style={styles.primaryBtn}>Initiate Bulk Sync</button>
@@ -260,7 +245,7 @@ function UploadQuestions() {
 
           {activeTab === "ai" && (
             <div style={{ animation: 'fadeIn 0.4s ease' }}>
-              <div style={styles.aiHeader}><FaBrain size={28} color="#8b5cf6" /><h3 style={{ margin: 0, fontWeight: '900' }}> AI Core</h3></div>
+              <div style={styles.aiHeader}><FaBrain size={28} color="#8b5cf6" /><h3 style={{ margin: 0, fontWeight: '900' }}>AI Core</h3></div>
               <input placeholder="Enter topic (e.g. Core Java Concepts)" value={aiConfig.topic} onChange={(e) => setAiConfig({ ...aiConfig, topic: e.target.value })} style={styles.input} />
               <div style={styles.aiGrid}>
                 <input type="number" value={aiConfig.count} onChange={(e) => setAiConfig({ ...aiConfig, count: e.target.value })} style={styles.input} />
@@ -271,7 +256,9 @@ function UploadQuestions() {
               <button onClick={handleAIGenerate} style={styles.aiBtn}>Synthesize AI Content</button>
               {aiPreview.length > 0 && (
                 <div style={{ marginTop: '25px' }}>
-                  <div className="custom-scroll" style={styles.previewScroll}>{aiPreview.map((q, i) => (<div key={i} style={styles.aiItem}><strong>{i + 1}.</strong> {q.content}</div>))}</div>
+                  <div className="custom-scroll" style={styles.previewScroll}>
+                    {aiPreview.map((q, i) => (<div key={i} style={styles.aiItem}><strong>{i + 1}.</strong> {q.content}</div>))}
+                  </div>
                   <button onClick={handleAISave} style={styles.primaryBtn}>Commit AI Assets</button>
                 </div>
               )}
@@ -291,7 +278,7 @@ function UploadQuestions() {
               </div>
               <div style={{ display: 'flex', gap: '15px', marginTop: '15px' }}>
                 <select value={manualData.correctAns} onChange={(e) => setManualData({ ...manualData, correctAns: e.target.value })} style={{ ...styles.select, flex: 1 }}>
-                  <option value="A">Choice A</option><option value="B">Choice B</option><option value="C">Choice C</option><option value="D">Choice D</option>
+                  {["A", "B", "C", "D"].map(o => <option key={o} value={o}>Correct Choice: {o}</option>)}
                 </select>
                 <button type="submit" style={{ ...styles.primaryBtn, flex: 1, marginTop: 0 }}><FaSave /> Save Asset</button>
               </div>
@@ -301,11 +288,13 @@ function UploadQuestions() {
       </div>
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .glass-card { transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         .glass-card:hover { transform: translateY(-5px); border-color: #2563eb !important; box-shadow: 0 15px 30px rgba(15,23,42,0.05) !important; }
+        .glass-card { transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         .dropzone:hover { border-color: #2563eb !important; background: #f0f7ff !important; }
         .custom-scroll::-webkit-scrollbar { width: 5px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #dbeafe; border-radius: 10px; }
+        .swal-premium-toast { border-radius: 15px !important; padding: 12px 20px !important; background: rgba(255, 255, 255, 0.95) !important; backdrop-filter: blur(10px) !important; border: 1px solid #e2e8f0 !important; }
+        body.swal2-shown { padding-right: 0 !important; }
       `}</style>
     </div>
   );
@@ -325,7 +314,7 @@ const styles = {
   cardTitle: { display: "flex", alignItems: "center", gap: "10px", fontWeight: "800", color: "#1e293b", fontSize: '15px' },
   iconBtn: { width: "38px", height: "38px", borderRadius: "10px", border: "none", background: "#eff6ff", color: "#2563eb", cursor: "pointer" },
   input: { width: "100%", padding: "14px 18px", borderRadius: "14px", border: "1px solid #e2e8f0", outline: "none", fontSize: "14px", color: '#1e293b', fontWeight: '600' },
-  select: { width: "100%", padding: "14px 18px", borderRadius: "14px", border: "1px solid #e2e8f0", outline: "none", fontSize: "14px", fontWeight: '800', background: '#fff' },
+  select: { width: "100%", padding: "14px 18px", borderRadius: "14px", border: "1px solid #e2e8f0", outline: "none", fontSize: "14px", color: '#1e293b', fontWeight: '800', background: '#fff' },
   timerRow: { display: "flex", gap: "12px", marginTop: "15px" },
   timerInput: { width: "85px", padding: "14px", borderRadius: "14px", border: "1px solid #e2e8f0", textAlign: "center", fontWeight: '900', fontSize: '16px' },
   timerBtn: { padding: "14px 20px", border: "none", background: "#0f172a", color: "#fff", borderRadius: "14px", cursor: "pointer", fontWeight: "800" },
@@ -339,6 +328,7 @@ const styles = {
   dropZone: { border: "2px dashed #dbeafe", borderRadius: "24px", padding: "45px 20px", textAlign: "center", background: "#f8fafc", cursor: 'pointer' },
   dropTitle: { marginTop: "15px", fontWeight: "900", color: "#0f172a", fontSize: '18px' },
   dropText: { fontSize: "13px", color: "#94a3b8" },
+  fileInput: { marginTop: "20px", color: '#2563eb', fontWeight: '700' },
   previewBox: { marginTop: "30px" },
   previewHeader: { marginBottom: "15px", fontWeight: "800", color: "#0f172a", fontSize: '15px' },
   previewScroll: { maxHeight: "280px", overflowY: "auto", borderRadius: "20px", border: "1px solid #f1f5f9", padding: "15px", background: "#f8fafc" },
@@ -354,7 +344,7 @@ const styles = {
   textarea: { width: "100%", minHeight: "140px", padding: "20px", borderRadius: "20px", border: "1px solid #e2e8f0", outline: "none", fontSize: "15px", fontWeight: '500', resize: "vertical", fontFamily: "inherit" },
   manualOptWrap: { display: 'flex', alignItems: 'center', gap: '12px' },
   optLabel: { width: '36px', height: '36px', background: '#f1f5f9', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', color: '#64748b' },
-  optionGrid: { display: "grid", gap: "15px", marginTop: "20px" },
+  optionGrid: { display: "grid", gap: "15px", marginTop: "20px" }
 };
 
 export default UploadQuestions;

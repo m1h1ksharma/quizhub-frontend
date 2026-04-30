@@ -3,7 +3,8 @@ import API from "../../api/axios";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import {
-  FaUsers, FaQuestionCircle, FaTrophy, FaLayerGroup, FaPlus, FaSync, FaChartLine, FaClock
+  FaUsers, FaQuestionCircle, FaTrophy, FaLayerGroup, FaPlus,
+  FaSync, FaChartLine, FaClock
 } from "react-icons/fa";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -31,19 +32,19 @@ function Dashboard() {
 
   const fetchStats = async () => {
     try {
-      // FIX: Ensure leading slash for correct base URL concatenation
       const res = await API.get("/admin/dashboard/stats");
       setStats({
-        totalUsers: res.data.totalUsers || 0,
-        totalQuestions: res.data.totalQuestions || 0,
-        totalRounds: res.data.totalRounds || 0,
-        topScore: res.data.topScore || 0,
+        totalUsers: res.data.totalUsers,
+        totalQuestions: res.data.totalQuestions,
+        totalRounds: res.data.totalRounds,
+        topScore: res.data.topScore,
       });
       setSubmissions(res.data.recentSubmissions || []);
       setGraphData(res.data.graphData || []);
+      setLoading(false);
     } catch (err) {
       console.error("Sync failed", err);
-      // Professional Toast for errors
+      setLoading(false);
       const Toast = Swal.mixin({
         toast: true,
         position: 'top-end',
@@ -55,14 +56,11 @@ function Dashboard() {
         icon: 'error',
         title: 'Sync Failed! Checking server...'
       });
-    } finally {
-      setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchStats();
-    // Live monitoring interval
     const interval = setInterval(fetchStats, 10000);
     return () => clearInterval(interval);
   }, []);
@@ -71,12 +69,10 @@ function Dashboard() {
 
   return (
     <div style={{ ...styles.container, padding: isMobile ? "16px" : "38px" }}>
-      {/* BACKGROUND MESHES */}
-      <div style={styles.meshone}></div>
+      <div style={styles.meshOne}></div>
       <div style={styles.meshTwo}></div>
       <div style={styles.meshThree}></div>
 
-      {/* HEADER SECTION[cite: 8] */}
       <div style={{ ...styles.header, flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "flex-start" : "center", gap: "18px" }}>
         <div style={{ zIndex: 2 }}>
           <h1 style={{ ...styles.mainTitle, fontSize: isMobile ? "28px" : "38px" }}>
@@ -97,8 +93,7 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* STATS CARDS[cite: 8] */}
-      <div style={{ ...styles.statsGrid, gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)" }}>
+      <div style={{ ...styles.statsGrid, gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)" }}>
         {[
           { label: "Active Students", val: stats.totalUsers, icon: <FaUsers />, color: "#3b82f6" },
           { label: "Questions", val: stats.totalQuestions, icon: <FaQuestionCircle />, color: "#8b5cf6" },
@@ -106,16 +101,16 @@ function Dashboard() {
           { label: "High Score", val: stats.topScore, icon: <FaTrophy />, color: "#f59e0b" }
         ].map((item, i) => (
           <div key={i} className="hover-card" style={styles.statCard}>
-            <div style={{ ...styles.iconWrap, background: item.color + "15", color: item.color }}>{item.icon}</div>
+            <div style={{ ...styles.iconWrap, background: item.color + "15", color: item.color }}>
+              {item.icon}
+            </div>
             <p style={styles.statLabel}>{item.label}</p>
             <h2 style={styles.statValue}>{item.val}</h2>
           </div>
         ))}
       </div>
 
-      {/* ANALYTICS GRID[cite: 8] */}
       <div style={{ ...styles.mainGrid, gridTemplateColumns: isMobile ? "1fr" : "1.8fr 1fr" }}>
-        {/* PERFORMANCE GRAPH[cite: 8] */}
         <div style={styles.mainCard}>
           <div style={styles.cardTop}>
             <h3 style={styles.cardTitle}><FaChartLine /> Performance Curve</h3>
@@ -139,7 +134,6 @@ function Dashboard() {
           </div>
         </div>
 
-        {/* RECENT ACTIVITY FEED[cite: 8] */}
         <div style={styles.mainCard}>
           <div style={styles.cardTop}>
             <h3 style={styles.cardTitle}><FaClock /> Recent Activity</h3>
@@ -152,9 +146,11 @@ function Dashboard() {
                   <div style={{ flex: 1 }}>
                     <div style={styles.feedRow}>
                       <span style={styles.studentName}>{sub.studentName}</span>
-                      <span style={styles.scorePill}>{sub.score}/{sub.totalQuestions || 0}</span>
+                      <span style={styles.scorePill}>{sub.score}/{sub.totalQuestions || sub.quizLimit}</span>
                     </div>
-                    <p style={styles.feedMeta}>{sub.quizRound} • {new Date(sub.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                    <p style={styles.feedMeta}>
+                      {sub.quizRound} • {new Date(sub.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </p>
                   </div>
                 </div>
               ))
@@ -172,8 +168,12 @@ function Dashboard() {
         .hover-card { transition: all .28s ease; }
         .hover-card:hover { transform: translateY(-6px); border-color: #2563eb; box-shadow: 0 22px 40px rgba(37,99,235,.10); }
         .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 16px 28px rgba(37,99,235,.25); }
+        .btn-secondary:hover, .footer-btn:hover { background: #f1f5f9 !important; }
+        .feed-item:hover { background: #f8fafc; transform: translateX(4px); }
         .pulse-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; margin-right: 8px; animation: pulse 1.8s infinite; }
         @keyframes pulse { 0% { transform: scale(.9); opacity: 1; } 70% { transform: scale(1.5); opacity: .25; } 100% { transform: scale(.9); opacity: 1; } }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #dbeafe; border-radius: 20px; }
       `}</style>
     </div>
   );
@@ -181,10 +181,10 @@ function Dashboard() {
 
 const styles = {
   container: { minHeight: "100vh", background: "linear-gradient(135deg, #f8fafc 0%, #eef4ff 50%, #f8fafc 100%)", position: "relative", overflow: "hidden" },
-  meshone: { position: "absolute", top: "-120px", right: "-100px", width: "320px", height: "320px", borderRadius: "50%", background: "radial-gradient(circle, rgba(37,99,235,.12), transparent 70%)" },
+  meshOne: { position: "absolute", top: "-120px", right: "-100px", width: "320px", height: "320px", borderRadius: "50%", background: "radial-gradient(circle, rgba(37,99,235,.12), transparent 70%)" },
   meshTwo: { position: "absolute", bottom: "-120px", left: "-100px", width: "300px", height: "300px", borderRadius: "50%", background: "radial-gradient(circle, rgba(139,92,246,.10), transparent 70%)" },
   meshThree: { position: "absolute", top: "35%", left: "45%", width: "220px", height: "220px", borderRadius: "50%", background: "radial-gradient(circle, rgba(16,185,129,.06), transparent 70%)", transform: "translate(-50%,-50%)" },
-  header: { display: "flex", justifyContent: "space-between", marginBottom: "30px", padding: "24px", borderRadius: "28px", background: "rgba(255,255,255,.78)", border: "1px solid rgba(255,255,255,.7)", backdropFilter: "blur(18px)", boxShadow: "0 18px 40px rgba(15,23,42,.05)", position: "relative", zIndex: 2 },
+  header: { display: "flex", justifyContent: "space-between", marginBottom: "30px", padding: "24px", borderRadius: "28px", background: "rgba(255,255,255,.78)", border: "1px solid rgba(255,255,255,.7)", backdropFilter: "blur(18px)", boxShadow: "0 18px 40px rgba(15,23,42,.05)", position: "relative", zIndex: 21 },
   mainTitle: { margin: 0, fontWeight: "900", color: "#0f172a", letterSpacing: "-1px", lineHeight: 1.1 },
   statusBadge: { marginTop: "12px", display: "inline-flex", alignItems: "center", padding: "8px 14px", borderRadius: "999px", background: "#ffffff", color: "#64748b", fontWeight: "700", fontSize: "12px", boxShadow: "0 10px 22px rgba(15,23,42,.04)" },
   headerActions: { display: "flex", gap: "12px" },
@@ -195,13 +195,13 @@ const styles = {
   iconWrap: { width: "50px", height: "50px", borderRadius: "16px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px", marginBottom: "16px" },
   statLabel: { margin: 0, fontSize: "13px", color: "#64748b", fontWeight: "700" },
   statValue: { margin: "8px 0 0 0", fontSize: "32px", fontWeight: "900", color: "#0f172a" },
-  mainGrid: { display: "grid", gap: "22px", position: "relative", zIndex: 2 },
+  mainGrid: { display: "grid", gap: "22px", position: "relative", zIndex: 21 },
   mainCard: { background: "rgba(255,255,255,.88)", border: "1px solid #eef2f7", borderRadius: "30px", padding: "28px", boxShadow: "0 18px 38px rgba(15,23,42,.05)", backdropFilter: "blur(14px)" },
   cardTop: { display: "flex", justifyContent: "space-between", alignItems: "center" },
   cardTitle: { margin: 0, fontSize: "18px", fontWeight: "800", color: "#1e293b", display: "flex", alignItems: "center", gap: "10px" },
   tooltip: { borderRadius: "16px", border: "none", boxShadow: "0 18px 28px rgba(0,0,0,.10)", padding: "10px" },
   feedList: { marginTop: "18px", display: "flex", flexDirection: "column", gap: "10px", maxHeight: "330px", overflowY: "auto" },
-  feedItem: { display: "flex", gap: "12px", padding: "12px", borderRadius: "16px", border: "1px solid #f1f5f9" },
+  feedItem: { display: "flex", gap: "12px", padding: "12px", borderRadius: "16px", border: "1px solid #f1f5f9", transition: "0.2s" },
   feedAvatar: { width: "42px", height: "42px", borderRadius: "14px", background: "#eff6ff", color: "#2563eb", fontWeight: "900", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   feedRow: { display: "flex", justifyContent: "space-between", gap: "10px" },
   studentName: { fontSize: "14px", fontWeight: "700", color: "#0f172a" },
