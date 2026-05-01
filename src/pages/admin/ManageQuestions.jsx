@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import API from "../../api/axios";
 import Swal from "sweetalert2";
 import {
-  FaTrashAlt, FaEdit, FaSearch, FaFilter, FaPlus, FaDatabase
+  FaTrashAlt, FaEdit, FaSearch, FaFilter, FaPlus, FaExclamationTriangle
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import LoadingLoader from "../../components/LoadingLoader";
@@ -73,53 +73,76 @@ function ManageQuestions() {
       showConfirmButton: false,
       timer: 2500,
       timerProgressBar: true,
-      scrollbarPadding: false,
-      customClass: {
-        popup: 'swal-toast-popup'
-      }
+      customClass: { popup: 'swal-toast-popup' }
     });
     Toast.fire({ icon, title: msg });
   };
 
+  // 1. Individual Delete
   const handleDelete = async (id) => {
     Swal.fire({
       ...premiumAlert,
       title: 'Delete Question?',
-      text: "This asset will be permanently removed from the system.",
+      text: "This asset will be permanently removed.",
       showCancelButton: true,
-      confirmButtonText: 'Delete Now!',
-      cancelButtonText: 'Cancel',
+      confirmButtonText: 'Delete Now',
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
           await API.delete(`/admin/questions/${id}`);
           setQuestions(questions.filter((q) => q.id !== id));
-          showToast('Question Deleted Successfully');
-        } catch (err) {
-          showToast('Failed to delete', 'error');
+          showToast('Question Deleted');
+        } catch {
+          showToast('Delete failed', 'error');
         }
       }
     });
   };
 
-  const handleClearRoundQuestions = async () => {
+  // 2. Clear Round (Specific Category)
+  const handleClearRound = async () => {
     if (selectedFilter === "All") return;
     Swal.fire({
       ...premiumAlert,
       title: `Purge ${selectedFilter}?`,
-      text: "Warning: This will wipe all questions in this category.",
+      text: "Every question in this category will be wiped!",
+      icon: 'warning',
       showCancelButton: true,
-      confirmButtonText: 'Purge All',
-      cancelButtonText: 'Abort',
+      confirmButtonText: 'Purge Category',
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
           setLoading(true);
           await API.delete(`/admin/questions/clear-by-round?roundName=${selectedFilter}`);
-          showToast(`Round ${selectedFilter} cleared`);
+          showToast(`${selectedFilter} Cleared`);
           fetchData();
-        } catch (err) {
+        } catch {
           showToast('Purge failed', 'error');
+          setLoading(false);
+        }
+      }
+    });
+  };
+
+  // 3. DELETE ALL (Full Reset)
+  const handlePurgeAll = async () => {
+    Swal.fire({
+      ...premiumAlert,
+      title: 'WIPE ENTIRE BANK?',
+      text: "This will delete ALL questions from ALL rounds. This action cannot be undone!",
+      icon: 'error',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Wipe Everything',
+      confirmButtonColor: '#ef4444'
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          setLoading(true);
+          await API.delete("/admin/questions/delete-all");
+          showToast('Question Bank Reset Successful');
+          fetchData();
+        } catch {
+          showToast('Reset failed', 'error');
           setLoading(false);
         }
       }
@@ -137,12 +160,17 @@ function ManageQuestions() {
         <div style={{ zIndex: 2 }}>
           <h1 style={styles.title}>Question <span style={{ color: "#2563eb" }}>Bank</span></h1>
           <div style={styles.subtitle}>
-            Monitoring <span style={styles.countPill}>{filteredQuestions.length}</span> Active Assets
+             Assets: <span style={styles.countPill}>{filteredQuestions.length}</span>
           </div>
         </div>
-        <button onClick={() => navigate("/admin/upload")} style={{ ...styles.addBtn, width: isMobile ? "100%" : "auto" }}>
-          <FaPlus /> New Question
-        </button>
+        <div style={{ display: 'flex', gap: '12px', width: isMobile ? '100%' : 'auto' }}>
+          <button onClick={handlePurgeAll} style={styles.purgeBtn}>
+            <FaExclamationTriangle /> Purge All
+          </button>
+          <button onClick={() => navigate("/admin/upload")} style={styles.addBtn}>
+            <FaPlus /> New Entry
+          </button>
+        </div>
       </div>
 
       <div style={{ ...styles.controlsWrap, gridTemplateColumns: isMobile ? "1fr" : "2.8fr 1.2fr auto" }}>
@@ -150,7 +178,7 @@ function ManageQuestions() {
           <FaSearch color="#cbd5e1" />
           <input
             type="text"
-            placeholder="Search questions by content..."
+            placeholder="Search questions..."
             style={styles.searchInput}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -158,63 +186,46 @@ function ManageQuestions() {
         </div>
         <div style={styles.filterBox}>
           <FaFilter color="#2563eb" size={14} />
-          <select 
-            style={styles.filterSelect}
-            value={selectedFilter}
-            onChange={(e) => setSelectedFilter(e.target.value)}
-          >
-            <option value="All">All Categories</option>
-            {rounds.map((r, i) => (
-              <option key={i} value={r}>{r.toUpperCase()}</option>
-            ))}
+          <select style={styles.filterSelect} value={selectedFilter} onChange={(e) => setSelectedFilter(e.target.value)}>
+            <option value="All">All Rounds</option>
+            {rounds.map((r, i) => (<option key={i} value={r}>{r.toUpperCase()}</option>))}
           </select>
         </div>
         {selectedFilter !== "All" && (
-          <button onClick={handleClearRoundQuestions} style={styles.clearBtn}>
+          <button onClick={handleClearRound} style={styles.clearBtn}>
             <FaTrashAlt size={12} /> Clear Round
           </button>
         )}
       </div>
 
       <div className="glass-card-main" style={styles.tableCard}>
-        <div style={styles.tableTop}>
-          <div style={styles.tableTitle}>Managed Content Assets</div>
-        </div>
         <div style={{ overflowX: "auto" }}>
           <table style={styles.table}>
             <thead>
               <tr>
-                <th style={styles.th}>Question Content</th>
-                <th style={styles.th}>Category</th>
+                <th style={styles.th}>Content</th>
+                <th style={styles.th}>Round</th>
                 <th style={styles.th}>Key</th>
-                <th style={styles.th}>Actions</th>
+                <th style={styles.th}>Action</th>
               </tr>
             </thead>
             <tbody>
               {filteredQuestions.length > 0 ? (
                 filteredQuestions.map((q) => (
                   <tr key={q.id} className="table-row">
-                    <td style={{ ...styles.td, minWidth: isMobile ? "240px" : "420px" }}>
-                      {q.content}
-                    </td>
-                    <td style={styles.td}>
-                      <span style={styles.roundBadge}>{q.category}</span>
-                    </td>
-                    <td style={styles.td}>
-                      <span style={styles.answerBadge}>{q.correctAns}</span>
-                    </td>
+                    <td style={{ ...styles.td, minWidth: isMobile ? "200px" : "400px" }}>{q.content}</td>
+                    <td style={styles.td}><span style={styles.roundBadge}>{q.category}</span></td>
+                    <td style={styles.td}><span style={styles.answerBadge}>{q.correctAns}</span></td>
                     <td style={styles.td}>
                       <div style={styles.actionWrap}>
-                        <button onClick={() => navigate(`/admin/edit-question/${q.id}`)} className="action-btn-hover edit-btn" style={styles.editBtn}><FaEdit /></button>
-                        <button onClick={() => handleDelete(q.id)} className="action-btn-hover delete-btn" style={styles.deleteBtn}><FaTrashAlt /></button>
+                        <button onClick={() => navigate(`/admin/edit-question/${q.id}`)} className="edit-btn" style={styles.editBtn}><FaEdit /></button>
+                        <button onClick={() => handleDelete(q.id)} className="delete-btn" style={styles.deleteBtn}><FaTrashAlt /></button>
                       </div>
                     </td>
                   </tr>
                 ))
               ) : (
-                <tr>
-                  <td colSpan="4" style={styles.emptyTd}>No records found for the current filter.</td>
-                </tr>
+                <tr><td colSpan="4" style={styles.emptyTd}>No records found.</td></tr>
               )}
             </tbody>
           </table>
@@ -222,18 +233,11 @@ function ManageQuestions() {
       </div>
 
       <style>{`
-        .table-row { transition: all 0.2s ease; }
         .table-row:hover { background: #f8fafc; }
-        .action-btn-hover:hover { transform: scale(1.1); }
-        .edit-btn:hover { background: #eff6ff !important; color: #2563eb !important; }
-        .delete-btn:hover { background: #fef2f2 !important; color: #ef4444 !important; }
         .swal-premium-popup { border-radius: 28px !important; padding: 2.5rem !important; background: #fff !important; border: 1px solid #f1f5f9 !important; box-shadow: 0 25px 50px 12px rgba(0,0,0,0.1) !important; }
-        .swal-premium-title { color: #0f172a !important; font-size: 22px !important; font-weight: 900 !important; letter-spacing: -1px !important; margin-bottom: 12px !important; }
-        .swal-premium-html { color: #64748b !important; font-size: 15px !important; font-weight: 500 !important; line-height: 1.6 !important; }
-        .swal-premium-confirm { background: #2563eb !important; color: #fff !important; border-radius: 14px !important; padding: 14px 28px !important; font-weight: 700 !important; margin-left: 10px !important; cursor: pointer; border: none !important; }
-        .swal-premium-cancel { background: #f1f5f9 !important; color: #64748b !important; border-radius: 14px !important; padding: 14px 28px !important; font-weight: 700 !important; cursor: pointer; border: none !important; }
-        .swal-toast-popup { border-radius: 18px !important; padding: 12px 20px !important; background: rgba(255, 255, 255, 0.95) !important; backdrop-filter: blur(10px) !important; border: 1px solid #e2e8f0 !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05) !important; }
-        body.swal2-shown { padding-right: 0 !important; }
+        .swal-premium-title { color: #0f172a !important; font-size: 22px !important; font-weight: 900 !important; }
+        .swal-premium-confirm { background: #2563eb !important; color: #fff !important; border-radius: 12px !important; padding: 12px 24px !important; font-weight: 700 !important; border: none !important; cursor: pointer; }
+        .swal-premium-cancel { background: #f1f5f9 !important; color: #64748b !important; border-radius: 12px !important; padding: 12px 24px !important; font-weight: 700 !important; border: none !important; cursor: pointer; }
       `}</style>
     </div>
   );
@@ -241,31 +245,30 @@ function ManageQuestions() {
 
 const styles = {
   container: { minHeight: "100vh", background: "#f8fafc", position: "relative", overflow: "hidden", fontFamily: "'Plus Jakarta Sans', sans-serif" },
-  meshOne: { position: "absolute", top: "-100px", right: "-100px", width: "280px", height: "280px", borderRadius: "50%", background: "radial-gradient(circle, rgba(37,99,235,0.10), transparent 70%)" },
-  meshTwo: { position: "absolute", bottom: "-100px", left: "-100px", width: "260px", height: "260px", borderRadius: "50%", background: "radial-gradient(circle, rgba(139,92,246,0.08), transparent 70%)" },
-  header: { display: "flex", justifyContent: "space-between", gap: "18px", marginBottom: "35px", padding: "24px", borderRadius: "32px", background: "rgba(255,255,255,0.80)", border: "1px solid rgba(255,255,255,0.70)", backdropFilter: "blur(20px)", boxShadow: "0 18px 40px rgba(15,23,42,0.05)", position: "relative", zIndex: 21 },
-  title: { margin: 0, fontWeight: "900", color: "#0f172a", letterSpacing: "-1.5px", fontSize: '38px' },
-  subtitle: { margin: "10px 0 0 0", color: "#64748b", fontWeight: "700", fontSize: "14px", display: 'flex', alignItems: 'center', gap: '8px' },
-  countPill: { background: "#eff6ff", color: "#2563eb", padding: "4px 10px", borderRadius: "99px", fontWeight: "800" },
-  addBtn: { border: "none", background: "#2563eb", color: "#fff", padding: "14px 24px", borderRadius: "16px", fontWeight: "800", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", transition: '0.3s' },
-  controlsWrap: { display: "grid", gap: "15px", marginBottom: "30px", position: 'relative', zIndex: 10 },
-  searchBox: { background: "#fff", border: "1px solid #e2e8f0", borderRadius: "20px", padding: "14px 22px", display: "flex", alignItems: "center", gap: "12px", boxShadow: "0 4px 15px rgba(0,0,0,0.02)" },
-  searchInput: { border: "none", outline: "none", width: "100%", fontSize: "15px", fontWeight: "600", color: '#1e293b' },
-  filterBox: { background: "#fff", border: "1px solid #e2e8f0", borderRadius: "20px", padding: "0 18px", display: "flex", alignItems: "center", gap: "10px" },
-  filterSelect: { width: "100%", height: "55px", border: "none", outline: "none", background: "transparent", fontWeight: "700", cursor: "pointer", fontSize: "14px", color: '#1e293b' },
-  clearBtn: { border: "1px solid #fee2e2", background: "#fef2f2", color: "#ef4444", padding: "0 24px", borderRadius: "18px", fontWeight: "800", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", transition: '0.3s' },
-  tableCard: { background: "#ffffffcc", backdropFilter: 'blur(10px)', border: "1px solid #f1f5f9", borderRadius: "32px", overflow: "hidden", boxShadow: "0 15px 35px rgba(0,0,0,0.03)", position: 'relative', zIndex: 10 },
-  table: { width: "100%", borderCollapse: "collapse", minWidth: "760px" },
-  tableTop: { padding: "20px 28px", borderBottom: "1px solid #f1f5f9", background: "rgba(255,255,255,0.5)" },
-  tableTitle: { fontWeight: "800", color: "#1e293b", fontSize: "16px" },
-  th: { background: "#f8fafc", padding: "18px 25px", textAlign: "left", fontSize: "11px", textTransform: "uppercase", color: "#94a3b8", fontWeight: "800", letterSpacing: "1px", borderBottom: '1px solid #f1f5f9' },
-  td: { padding: "20px 25px", borderBottom: "1px solid #f8fafc", fontSize: "14px", color: "#334155", verticalAlign: "middle", fontWeight: '500' },
-  roundBadge: { background: "#eff6ff", color: "#2563eb", padding: "6px 14px", borderRadius: "10px", fontSize: "11px", fontWeight: "800", textTransform: 'uppercase' },
-  answerBadge: { background: "#f0fdf4", color: "#16a34a", padding: "6px 14px", borderRadius: "10px", fontSize: "12px", fontWeight: "900" },
-  actionWrap: { display: "flex", gap: "10px" },
-  editBtn: { border: "none", background: "#f8fafc", color: "#94a3b8", width: '40px', height: '40px', borderRadius: "12px", cursor: "pointer", display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.2s' },
-  deleteBtn: { border: "none", background: "#f8fafc", color: "#94a3b8", width: '40px', height: '40px', borderRadius: "12px", cursor: "pointer", display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.2s' },
-  emptyTd: { textAlign: "center", padding: "100px", color: "#cbd5e1", fontWeight: "600", fontSize: "16px" }
+  meshOne: { position: "absolute", top: "-100px", right: "-100px", width: "280px", height: "280px", borderRadius: "50%", background: "radial-gradient(circle, rgba(37,99,235,0.08), transparent 70%)" },
+  meshTwo: { position: "absolute", bottom: "-100px", left: "-100px", width: "260px", height: "260px", borderRadius: "50%", background: "radial-gradient(circle, rgba(139,92,246,0.06), transparent 70%)" },
+  header: { display: "flex", justifyContent: "space-between", marginBottom: "35px", padding: "24px", borderRadius: "32px", background: "rgba(255,255,255,0.8)", backdropFilter: "blur(20px)", border: "1px solid #f1f5f9" },
+  title: { margin: 0, fontWeight: "900", color: "#0f172a", fontSize: '36px' },
+  subtitle: { color: "#64748b", fontWeight: "700", fontSize: "14px", marginTop: "5px" },
+  countPill: { background: "#eff6ff", color: "#2563eb", padding: "4px 10px", borderRadius: "99px" },
+  addBtn: { border: "none", background: "#2563eb", color: "#fff", padding: "12px 24px", borderRadius: "14px", fontWeight: "800", cursor: "pointer", display: "flex", alignItems: "center", gap: "10px", flex: 1 },
+  purgeBtn: { border: "1px solid #fee2e2", background: "#fef2f2", color: "#ef4444", padding: "12px 24px", borderRadius: "14px", fontWeight: "800", cursor: "pointer", display: "flex", alignItems: "center", gap: "10px", flex: 1 },
+  controlsWrap: { display: "grid", gap: "15px", marginBottom: "30px" },
+  searchBox: { background: "#fff", border: "1px solid #e2e8f0", borderRadius: "18px", padding: "12px 20px", display: "flex", alignItems: "center", gap: "10px" },
+  searchInput: { border: "none", outline: "none", width: "100%", fontWeight: "600" },
+  filterBox: { background: "#fff", border: "1px solid #e2e8f0", borderRadius: "18px", padding: "0 15px", display: "flex", alignItems: "center" },
+  filterSelect: { height: "50px", border: "none", outline: "none", fontWeight: "700", width: "100%" },
+  clearBtn: { border: "none", background: "#fef2f2", color: "#ef4444", borderRadius: "18px", padding: "0 20px", fontWeight: "800", cursor: "pointer" },
+  tableCard: { background: "#fff", border: "1px solid #f1f5f9", borderRadius: "30px", overflow: "hidden" },
+  table: { width: "100%", borderCollapse: "collapse" },
+  th: { background: "#f8fafc", padding: "18px 25px", textAlign: "left", fontSize: "11px", textTransform: "uppercase", color: "#94a3b8" },
+  td: { padding: "18px 25px", borderBottom: "1px solid #f8fafc", fontSize: "14px" },
+  roundBadge: { background: "#eff6ff", color: "#2563eb", padding: "5px 12px", borderRadius: "8px", fontWeight: "800", fontSize: "11px" },
+  answerBadge: { background: "#f0fdf4", color: "#16a34a", padding: "5px 12px", borderRadius: "8px", fontWeight: "900" },
+  actionWrap: { display: "flex", gap: "8px" },
+  editBtn: { border: "none", background: "#f8fafc", color: "#94a3b8", width: "38px", height: "38px", borderRadius: "10px", cursor: "pointer" },
+  deleteBtn: { border: "none", background: "#f8fafc", color: "#94a3b8", width: "38px", height: "38px", borderRadius: "10px", cursor: "pointer" },
+  emptyTd: { padding: "100px", textAlign: "center", color: "#cbd5e1", fontWeight: "600" }
 };
 
 export default ManageQuestions;
