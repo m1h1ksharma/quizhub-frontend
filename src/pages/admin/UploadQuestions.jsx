@@ -4,7 +4,7 @@ import API from "../../api/axios";
 import Swal from "sweetalert2";
 import {
   FaClock, FaLayerGroup, FaPlus, FaCloudUploadAlt, FaBrain, FaTimes,
-  FaFileExcel, FaSave, FaRobot, FaDownload, FaInfoCircle, FaTrash
+  FaFileExcel, FaSave, FaDownload, FaInfoCircle, FaTrash, FaMagic
 } from "react-icons/fa";
 import LoadingLoader from "../../components/LoadingLoader";
 
@@ -19,6 +19,8 @@ function UploadQuestions() {
   const [newRoundName, setNewRoundName] = useState("");
   const [quizTimer, setQuizTimer] = useState(10);
   const [questionLimit, setQuestionLimit] = useState(50);
+  
+  // Data States
   const [excelPreview, setExcelPreview] = useState([]);
   const [aiConfig, setAiConfig] = useState({ topic: "", count: 5, difficulty: "Medium" });
   const [aiPreview, setAiPreview] = useState([]);
@@ -40,34 +42,34 @@ function UploadQuestions() {
         API.get("/admin/questions/rounds"),
         API.get("/admin/settings/timer"),
       ]);
-      if (roundsRes.data?.length > 0) {
+      if (roundsRes.data) {
         setAvailableRounds(roundsRes.data);
-        setSelectedRound(roundsRes.data[0]);
+        setSelectedRound(roundsRes.data[0] || "Normal Quiz");
       }
       if (timerRes.data) {
         setQuizTimer(timerRes.data.timerMinutes || 10);
         setQuestionLimit(timerRes.data.questionLimit || 50);
       }
     } catch (err) {
-      console.error("Initial Load Error", err);
+      console.error("Load Error", err);
     } finally {
       setLoading(false);
     }
   };
 
   const showToast = (msg, icon = 'success') => {
-    const Toast = Swal.mixin({
+    Swal.fire({
       toast: true,
       position: 'bottom-end',
       showConfirmButton: false,
-      timer: 2500,
+      timer: 3000,
+      icon,
+      title: msg,
       timerProgressBar: true,
-      customClass: { popup: 'swal-premium-toast' }
     });
-    Toast.fire({ icon, title: msg });
   };
 
-  // 1. UPDATE GLOBAL SETTINGS (Timer & Limit)
+  // --- 1. SETTINGS UPDATE ---
   const handleUpdateSettings = async () => {
     try {
       setLoading(true);
@@ -78,6 +80,7 @@ function UploadQuestions() {
         roundName: target || "Normal Quiz"
       });
       showToast("System Config Updated!");
+      setIsAddingNewRound(false);
       loadInitialData();
     } catch (err) {
       showToast("Update Failed", "error");
@@ -86,23 +89,17 @@ function UploadQuestions() {
     }
   };
 
-  // 2. EXCEL UPLOAD LOGIC (Fixed FormData issue)
+  // --- 2. EXCEL LOGIC ---
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (!selectedFile) return;
-    setFile(selectedFile); // File state set ho rahi hai
-
+    setFile(selectedFile);
     const reader = new FileReader();
     reader.onload = (evt) => {
-      try {
-        const bstr = evt.target.result;
-        const wb = XLSX.read(bstr, { type: "binary" });
-        const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-        setExcelPreview(data);
-        showToast(`Staged ${data.length} questions`, 'info');
-      } catch (err) {
-        showToast("Invalid Excel structure", "error");
-      }
+      const bstr = evt.target.result;
+      const wb = XLSX.read(bstr, { type: "binary" });
+      const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+      setExcelPreview(data);
     };
     reader.readAsBinaryString(selectedFile);
   };
@@ -110,11 +107,9 @@ function UploadQuestions() {
   const handleExcelUpload = async () => {
     const target = isAddingNewRound ? newRoundName.trim() : selectedRound;
     if (!file || !target) return showToast('File or Round missing!', 'warning');
-
     const formData = new FormData();
-    formData.append("file", file); // Correctly appending the file object
+    formData.append("file", file);
     formData.append("round", target);
-
     try {
       setLoading(true);
       await API.post("/admin/questions/upload-excel", formData);
@@ -122,13 +117,11 @@ function UploadQuestions() {
       setFile(null);
       setExcelPreview([]);
       loadInitialData();
-    } catch (err) {
-      showToast('Upload failed (Check 403)', 'error');
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { showToast('Upload failed', 'error'); }
+    finally { setLoading(false); }
   };
 
+  // --- 3. MANUAL LOGIC ---
   const handleManualSubmit = async (e) => {
     e.preventDefault();
     const target = isAddingNewRound ? newRoundName.trim() : selectedRound;
@@ -137,170 +130,160 @@ function UploadQuestions() {
       await API.post("/admin/questions/add", { ...manualData, category: target });
       showToast('Question Saved!');
       setManualData({ content: "", optionA: "", optionB: "", optionC: "", optionD: "", correctAns: "A" });
-      loadInitialData();
-    } catch (err) { showToast('Failed to save', 'error'); }
+    } catch (err) { showToast('Save failed', 'error'); }
     finally { setLoading(false); }
   };
 
-  const downloadTemplate = () => {
-    const templateData = [{
-      content: "Example Question?", optionA: "Opt 1", optionB: "Opt 2", optionC: "Opt 3", optionD: "Opt 4", correctAns: "A"
-    }];
-    const ws = XLSX.utils.json_to_sheet(templateData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "QuizTemplate");
-    XLSX.writeFile(wb, "QuizHub_Template.xlsx");
-    showToast("Template Downloaded!");
+  // --- 4. AI LOGIC ---
+  const handleAIGenerate = async () => {
+    if (!aiConfig.topic) return showToast("Topic is required", "warning");
+    try {
+      setLoading(true);
+      const res = await API.post("/admin/questions/ai-generate", aiConfig);
+      // AI response is raw string, we parse it
+      const questions = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
+      setAiPreview(questions);
+      showToast("AI Synthesis Ready!");
+    } catch (err) {
+      showToast("AI Error", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (loading) return <LoadingLoader message="Syncing Question Hub..." type="scan" />;
+  const saveAiQuestions = async () => {
+    const target = isAddingNewRound ? newRoundName.trim() : selectedRound;
+    const finalQuestions = aiPreview.map(q => ({ ...q, category: target }));
+    try {
+      setLoading(true);
+      await API.post("/admin/questions/ai-save-bulk", finalQuestions);
+      showToast("AI Questions Committed!");
+      setAiPreview([]);
+    } catch (err) { showToast("Save failed", "error"); }
+    finally { setLoading(false); }
+  };
+
+  if (loading) return <LoadingLoader message="Processing Quiz Assets..." />;
 
   return (
     <div style={styles.page}>
-      <div style={styles.meshOne}></div>
-      <div style={styles.meshTwo}></div>
-      <div style={{ ...styles.container, padding: isMobile ? "16px" : "40px" }}>
-        
+      <div style={styles.container}>
         <div style={styles.header}>
-          <h1 style={styles.title}>Upload <span style={{ color: "#2563eb" }}>Hub</span></h1>
-          <p style={styles.subtitleText}>Architecting {availableRounds.length} Active Quiz Segments</p>
+          <h1 style={styles.title}>Upload <span style={{ color: "#2563eb" }}>Center</span></h1>
+          <p>Manage Excel, Manual, and AI Generated Questions</p>
         </div>
 
         {/* --- Config Section --- */}
-        <div style={{ ...styles.configGrid, gridTemplateColumns: isMobile ? "1fr" : "1.2fr 0.8fr" }}>
-          <div className="glass-card" style={styles.configCard}>
-            <div style={styles.cardTop}>
-              <div style={styles.cardTitle}><FaLayerGroup color="#2563eb" /> Active Target</div>
-              <button onClick={() => setIsAddingNewRound(!isAddingNewRound)} style={styles.iconBtn}>
+        <div style={styles.configGrid}>
+          <div style={styles.glassCard}>
+            <div style={styles.cardHeader}>
+              <span><FaLayerGroup color="#2563eb" /> Select Round</span>
+              <button onClick={() => setIsAddingNewRound(!isAddingNewRound)} style={styles.smallBtn}>
                 {isAddingNewRound ? <FaTimes /> : <FaPlus />}
               </button>
             </div>
             {!isAddingNewRound ? (
-              <select value={selectedRound} onChange={(e) => setSelectedRound(e.target.value)} style={styles.select}>
-                {availableRounds.map((rnd, i) => (<option key={i} value={rnd}>{rnd.toUpperCase()}</option>))}
+              <select value={selectedRound} onChange={(e) => setSelectedRound(e.target.value)} style={styles.input}>
+                {availableRounds.map((r, i) => <option key={i} value={r}>{r}</option>)}
               </select>
             ) : (
-              <input type="text" placeholder="Naming New Round..." value={newRoundName} onChange={(e) => setNewRoundName(e.target.value)} style={styles.input} />
+              <input placeholder="New Round Name..." value={newRoundName} onChange={(e) => setNewRoundName(e.target.value)} style={styles.input} />
             )}
           </div>
 
-          <div className="glass-card" style={styles.configCard}>
-            <div style={styles.cardTitle}><FaClock color="#f59e0b" /> System Config</div>
+          <div style={styles.glassCard}>
+            <span><FaClock color="#f59e0b" /> Settings</span>
             <div style={styles.timerRow}>
-              <div style={{flex: 1}}>
-                 <label style={styles.miniLabel}>Mins</label>
-                 <input type="number" value={quizTimer} onChange={(e) => setQuizTimer(e.target.value)} style={styles.timerInput} />
-              </div>
-              <div style={{flex: 1}}>
-                 <label style={styles.miniLabel}>Limit</label>
-                 <input type="number" value={questionLimit} onChange={(e) => setQuestionLimit(e.target.value)} style={styles.timerInput} />
-              </div>
-              <button onClick={handleUpdateSettings} style={styles.timerBtn}>Update</button>
+              <input type="number" value={quizTimer} onChange={(e) => setQuizTimer(e.target.value)} style={styles.miniInput} title="Minutes" />
+              <input type="number" value={questionLimit} onChange={(e) => setQuestionLimit(e.target.value)} style={styles.miniInput} title="Limit" />
+              <button onClick={handleUpdateSettings} style={styles.saveBtn}>Apply</button>
             </div>
           </div>
         </div>
 
         {/* --- Tabs --- */}
-        <div style={{ ...styles.tabs, flexDirection: isMobile ? "column" : "row" }}>
-          <button onClick={() => setActiveTab("excel")} style={{...styles.tabBtn, background: activeTab === "excel" ? "#2563eb" : "#fff", color: activeTab === "excel" ? "#fff" : "#64748b"}}>
-            <FaFileExcel /> Excel Bulk
-          </button>
-          <button onClick={() => setActiveTab("manual")} style={{...styles.tabBtn, background: activeTab === "manual" ? "#2563eb" : "#fff", color: activeTab === "manual" ? "#fff" : "#64748b"}}>
-            <FaPlus /> Manual Entry
-          </button>
+        <div style={styles.tabs}>
+          <button onClick={() => setActiveTab("excel")} style={{...styles.tab, borderBottom: activeTab === "excel" ? "3px solid #2563eb" : "none"}}><FaFileExcel /> Excel</button>
+          <button onClick={() => setActiveTab("manual")} style={{...styles.tab, borderBottom: activeTab === "manual" ? "3px solid #2563eb" : "none"}}><FaPlus /> Manual</button>
+          <button onClick={() => setActiveTab("ai")} style={{...styles.tab, borderBottom: activeTab === "ai" ? "3px solid #2563eb" : "none"}}><FaMagic /> AI Synth</button>
         </div>
 
-        {/* --- Main Panel --- */}
-        <div className="main-panel-glass" style={styles.mainCard}>
+        {/* --- Content Area --- */}
+        <div style={styles.mainCard}>
           {activeTab === "excel" && (
             <div>
-              <div style={styles.formatInfo}>
-                <div style={styles.formatHeader}><FaInfoCircle color="#059669" /><span style={{ fontWeight: '800' }}> Expected Format</span></div>
-                <p style={styles.formatText}>Columns: content, optionA, optionB, optionC, optionD, correctAns</p>
-                <button onClick={downloadTemplate} style={styles.downloadBtn}><FaDownload /> Get Template</button>
-              </div>
-              <div className="dropzone" onClick={() => document.getElementById('exFile').click()} style={styles.dropZone}>
-                <FaCloudUploadAlt size={50} color="#2563eb" />
-                <h3 style={styles.dropTitle}>Drop .xlsx file here</h3>
-                <input id="exFile" type="file" accept=".xlsx,.xls" onChange={handleFileChange} style={{display: 'none'}} />
+              <div style={styles.dropZone} onClick={() => document.getElementById('exFile').click()}>
+                <FaCloudUploadAlt size={40} color="#2563eb" />
+                <p>{file ? file.name : "Click to select Excel file"}</p>
+                <input id="exFile" type="file" hidden onChange={handleFileChange} />
               </div>
               {excelPreview.length > 0 && (
-                <div style={styles.previewBox}>
-                  <div className="custom-scroll" style={styles.previewScroll}>
-                    <table style={styles.table}>
-                      <tbody>{excelPreview.map((r, i) => (
-                        <tr key={i}><td style={styles.td}>{r.content?.substring(0, 50)}...</td><td style={styles.td}><span style={styles.keyBadge}>{r.correctAns}</span></td></tr>
-                      ))}</tbody>
-                    </table>
-                  </div>
-                  <button onClick={handleExcelUpload} style={styles.primaryBtn}>Initiate Bulk Sync</button>
-                </div>
+                <button onClick={handleExcelUpload} style={styles.primaryBtn}>Upload {excelPreview.length} Questions</button>
               )}
             </div>
           )}
 
           {activeTab === "manual" && (
             <form onSubmit={handleManualSubmit}>
-              <textarea placeholder="Question content..." value={manualData.content} onChange={(e) => setManualData({ ...manualData, content: e.target.value })} style={styles.textarea} required />
+              <textarea placeholder="Enter Question..." value={manualData.content} onChange={(e) => setManualData({...manualData, content: e.target.value})} style={styles.textarea} required />
               <div style={styles.optionGrid}>
-                {["A", "B", "C", "D"].map((opt) => (
-                  <div key={opt} style={styles.manualOptWrap}>
-                    <span style={styles.optLabel}>{opt}</span>
-                    <input placeholder={`Option ${opt}`} value={manualData[`option${opt}`]} onChange={(e) => setManualData({ ...manualData, [`option${opt}`]: e.target.value })} style={styles.input} required />
-                  </div>
+                {["A", "B", "C", "D"].map(o => (
+                  <input key={o} placeholder={`Option ${o}`} value={manualData[`option${o}`]} onChange={(e) => setManualData({...manualData, [`option${o}`]: e.target.value})} style={styles.input} required />
                 ))}
               </div>
-              <button type="submit" style={styles.primaryBtn}><FaSave /> Save Question</button>
+              <select value={manualData.correctAns} onChange={(e) => setManualData({...manualData, correctAns: e.target.value})} style={styles.input}>
+                <option value="A">Correct: A</option><option value="B">Correct: B</option><option value="C">Correct: C</option><option value="D">Correct: D</option>
+              </select>
+              <button type="submit" style={styles.primaryBtn}>Save Question</button>
             </form>
+          )}
+
+          {activeTab === "ai" && (
+            <div>
+              <div style={styles.aiFlex}>
+                <input placeholder="Topic (e.g. Java, History)" value={aiConfig.topic} onChange={(e) => setAiConfig({...aiConfig, topic: e.target.value})} style={styles.input} />
+                <select value={aiConfig.difficulty} onChange={(e) => setAiConfig({...aiConfig, difficulty: e.target.value})} style={styles.input}>
+                  <option value="Easy">Easy</option><option value="Medium">Medium</option><option value="Hard">Hard</option>
+                </select>
+                <input type="number" value={aiConfig.count} onChange={(e) => setAiConfig({...aiConfig, count: e.target.value})} style={styles.miniInput} />
+              </div>
+              <button onClick={handleAIGenerate} style={styles.aiBtn}>Generate Questions</button>
+              {aiPreview.length > 0 && (
+                <div style={{marginTop: '20px'}}>
+                  <p>{aiPreview.length} Questions Generated</p>
+                  <button onClick={saveAiQuestions} style={styles.primaryBtn}>Commit to Database</button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
-      <style>{`
-        .glass-card:hover { transform: translateY(-5px); border-color: #2563eb !important; }
-        .dropzone:hover { background: #f0f7ff !important; border-color: #2563eb !important; }
-        .custom-scroll::-webkit-scrollbar { width: 5px; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #dbeafe; border-radius: 10px; }
-      `}</style>
     </div>
   );
 }
 
 const styles = {
-  page: { minHeight: "100vh", background: "#f8fafc", position: "relative", overflow: "hidden", fontFamily: "'Plus Jakarta Sans', sans-serif" },
-  meshOne: { position: "absolute", top: "-100px", right: "-100px", width: "350px", height: "350px", borderRadius: "50%", background: "radial-gradient(circle, rgba(37,99,235,.07), transparent 70%)" },
-  meshTwo: { position: "absolute", bottom: "-100px", left: "-100px", width: "300px", height: "300px", borderRadius: "50%", background: "radial-gradient(circle, rgba(139,92,246,.05), transparent 70%)" },
-  container: { maxWidth: "1100px", margin: "0 auto", position: "relative", zIndex: 10 },
-  header: { textAlign: "center", marginBottom: "40px" },
-  title: { fontSize: "40px", fontWeight: "900", color: "#0f172a" },
-  subtitleText: { color: "#64748b", fontWeight: "600" },
-  configGrid: { display: "grid", gap: "20px", marginBottom: "35px" },
-  configCard: { background: "#fff", borderRadius: "24px", padding: "24px", border: "1px solid #f1f5f9" },
-  cardTop: { display: "flex", justifyContent: "space-between", marginBottom: "16px", alignItems: "center" },
-  cardTitle: { display: "flex", alignItems: "center", gap: "10px", fontWeight: "800", color: "#1e293b" },
-  iconBtn: { width: "38px", height: "38px", borderRadius: "10px", border: "none", background: "#eff6ff", color: "#2563eb", cursor: "pointer" },
-  input: { width: "100%", padding: "14px", borderRadius: "14px", border: "1px solid #e2e8f0", outline: "none" },
-  select: { width: "100%", padding: "14px", borderRadius: "14px", border: "1px solid #e2e8f0", background: '#fff' },
-  timerRow: { display: "flex", gap: "12px", marginTop: "10px", alignItems: 'flex-end' },
-  miniLabel: { fontSize: '10px', fontWeight: '800', color: '#94a3b8', marginLeft: '5px' },
-  timerInput: { width: "100%", padding: "12px", borderRadius: "14px", border: "1px solid #e2e8f0", textAlign: "center", fontWeight: '900' },
-  timerBtn: { padding: "14px 20px", border: "none", background: "#0f172a", color: "#fff", borderRadius: "14px", cursor: "pointer", fontWeight: "800" },
-  tabs: { display: "flex", gap: "15px", marginBottom: "35px" },
-  tabBtn: { flex: 1, padding: "16px", borderRadius: "18px", border: "1px solid #e2e8f0", fontWeight: "800", cursor: "pointer", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' },
-  mainCard: { background: "#fff", borderRadius: "32px", padding: "30px", border: "1px solid #f1f5f9", boxShadow: "0 10px 30px rgba(0,0,0,0.02)" },
-  formatInfo: { background: "#f0fdf4", padding: "15px", borderRadius: "15px", marginBottom: "20px" },
-  formatHeader: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' },
-  formatText: { fontSize: '12px', color: '#065f46' },
-  downloadBtn: { background: '#059669', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', marginTop: '10px' },
-  dropZone: { border: "2px dashed #dbeafe", borderRadius: "20px", padding: "40px", textAlign: "center", background: "#f8fafc", cursor: 'pointer' },
-  dropTitle: { marginTop: "10px", fontWeight: "800" },
-  previewScroll: { maxHeight: "250px", overflowY: "auto", marginTop: '20px' },
-  td: { padding: "10px", borderBottom: "1px solid #f1f5f9", fontSize: "14px" },
-  keyBadge: { background: "#f0fdf4", color: "#16a34a", padding: "2px 8px", borderRadius: "5px", fontWeight: '900' },
-  primaryBtn: { width: "100%", marginTop: "20px", padding: "18px", borderRadius: "16px", border: "none", background: "#2563eb", color: "#fff", fontWeight: "800", cursor: "pointer" },
-  textarea: { width: "100%", minHeight: "120px", padding: "15px", borderRadius: "15px", border: "1px solid #e2e8f0", marginBottom: '15px' },
-  optionGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" },
-  manualOptWrap: { display: 'flex', alignItems: 'center', gap: '10px' },
-  optLabel: { width: '30px', height: '30px', background: '#f1f5f9', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900' }
+  page: { minHeight: "100vh", padding: "20px", background: "#f8fafc" },
+  container: { maxWidth: "900px", margin: "0 auto" },
+  header: { textAlign: "center", marginBottom: "30px" },
+  title: { fontSize: "32px", fontWeight: "800" },
+  configGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "20px" },
+  glassCard: { background: "#fff", padding: "20px", borderRadius: "15px", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" },
+  cardHeader: { display: "flex", justifyContent: "space-between", marginBottom: "10px" },
+  timerRow: { display: "flex", gap: "10px", marginTop: "10px" },
+  input: { width: "100%", padding: "12px", marginBottom: "10px", borderRadius: "8px", border: "1px solid #e2e8f0" },
+  miniInput: { width: "70px", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0", textAlign: "center" },
+  smallBtn: { border: "none", background: "#eff6ff", color: "#2563eb", padding: "5px 10px", borderRadius: "5px", cursor: "pointer" },
+  saveBtn: { flex: 1, background: "#0f172a", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer" },
+  tabs: { display: "flex", background: "#fff", borderRadius: "10px", marginBottom: "20px", overflow: "hidden" },
+  tab: { flex: 1, padding: "15px", border: "none", background: "none", cursor: "pointer", fontWeight: "700", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" },
+  mainCard: { background: "#fff", padding: "30px", borderRadius: "20px", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)" },
+  dropZone: { border: "2px dashed #cbd5e1", padding: "40px", textAlign: "center", borderRadius: "15px", cursor: "pointer" },
+  primaryBtn: { width: "100%", padding: "15px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "10px", fontWeight: "700", cursor: "pointer", marginTop: "15px" },
+  textarea: { width: "100%", height: "100px", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0", marginBottom: "10px" },
+  optionGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" },
+  aiFlex: { display: "flex", gap: "10px", marginBottom: "10px" },
+  aiBtn: { width: "100%", padding: "12px", background: "#8b5cf6", color: "#fff", border: "none", borderRadius: "10px", cursor: "pointer" }
 };
 
 export default UploadQuestions;
