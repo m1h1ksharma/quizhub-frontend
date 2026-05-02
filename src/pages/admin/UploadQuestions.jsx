@@ -68,20 +68,50 @@ function UploadQuestions() {
   };
 
   const handleExcelUpload = async () => {
-    const target = isAddingNewRound ? newRoundName.trim() : selectedRound;
-    if (!file || !target) return showToast('Details missing!', 'warning');
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("round", target);
-    try {
-      setLoading(true);
-      await API.post("/admin/questions/upload-excel", formData);
-      showToast('Bulk Sync Complete!');
-      setFile(null); setExcelPreview([]);
-      loadInitialData();
-    } catch (err) { showToast('Upload Failed', 'error'); }
-    finally { setLoading(false); }
-  };
+  const target = isAddingNewRound ? newRoundName.trim() : selectedRound;
+
+  if (!file || !target) {
+    return showToast("Details missing!", "warning");
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("round", target);
+
+  try {
+    setLoading(true);
+
+    const token = localStorage.getItem("token");
+    const email =
+      localStorage.getItem("email") ||
+      localStorage.getItem("userEmail") ||
+      localStorage.getItem("adminEmail");
+
+    await API.post("/admin/questions/upload-excel", formData, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "user-email": email,
+      },
+    });
+
+    showToast("Bulk Sync Complete!", "success");
+    setFile(null);
+    setExcelPreview([]);
+    loadInitialData();
+
+  } catch (err) {
+    console.error("Upload Error:", err);
+
+    const msg =
+      err?.response?.data?.message ||
+      err?.response?.data ||
+      "Upload Failed";
+
+    showToast(msg, "error");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleAIGenerate = async () => {
     if (!aiConfig.topic) return showToast("Topic required", "warning");
