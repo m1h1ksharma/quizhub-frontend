@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import {
   FaUsers, FaQuestionCircle, FaTrophy, FaLayerGroup, FaPlus,
-  FaSync, FaChartLine, FaClock
+  FaSync, FaChartLine, FaClock, FaShieldAlt, FaCircle
 } from "react-icons/fa";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -13,202 +13,251 @@ import LoadingLoader from "../../components/LoadingLoader";
 
 function Dashboard() {
   const navigate = useNavigate();
-  const [stats, setStats] = useState({
-    totalUsers: 0,
-    totalQuestions: 0,
-    totalRounds: 0,
+  
+  // States - High Concurrency Stats
+  const [stats, setStats] = useState({ 
+    totalUsers: 0, 
+    totalQuestions: 0, 
+    totalRounds: 0, 
     topScore: 0,
+    activeStudents: 0 
   });
+  const [settings, setSettings] = useState({ roundName: "", showResult: false });
   const [submissions, setSubmissions] = useState([]);
   const [graphData, setGraphData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  const fetchStats = async () => {
+  // 1. Data Logic: Syncing Stats, Graph, and Active Round
+  const fetchData = async () => {
     try {
       const res = await API.get("/admin/dashboard/stats");
+      
+      // Dashboard Stats
       setStats({
-        totalUsers: res.data.totalUsers,
-        totalQuestions: res.data.totalQuestions,
-        totalRounds: res.data.totalRounds,
-        topScore: res.data.topScore,
+        totalUsers: res.data.totalUsers || 0,
+        totalQuestions: res.data.totalQuestions || 0,
+        totalRounds: res.data.totalRounds || 0,
+        topScore: res.data.topScore || 0,
+        activeStudents: res.data.activeStudents || 0
       });
+      
       setSubmissions(res.data.recentSubmissions || []);
       setGraphData(res.data.graphData || []);
-      setLoading(false);
+
+      // Active Configuration fetch karna (Student side active round pata karne ke liye)
+      const configRes = await API.get("/admin/settings/timer");
+      const currentActiveRound = configRes.data.activeRound;
+      
+      if (currentActiveRound) {
+        const setRes = await API.get(`/admin/settings/${currentActiveRound}`);
+        setSettings({
+            roundName: currentActiveRound,
+            showResult: setRes.data.showResult
+        });
+      }
     } catch (err) {
-      console.error("Sync failed", err);
+      console.error("Dashboard Sync Fail:", err);
+    } finally {
       setLoading(false);
-      const Toast = Swal.mixin({
-        toast: true,
-        position: 'top-end',
-        showConfirmButton: false,
-        timer: 3000,
-        timerProgressBar: true,
+    }
+  };
+
+  // 2. Logic: Result Toggle API Call
+  const handleToggleResult = async () => {
+    try {
+      const newStatus = !settings.showResult;
+      // Backend mapping update: /api/admin/settings/toggle-result/{roundName}?status=true
+      await API.put(`/admin/settings/toggle-result/${settings.roundName}?status=${newStatus}`);
+      
+      setSettings(prev => ({ ...prev, showResult: newStatus }));
+      
+      Swal.fire({
+        toast: true, position: 'top-end', icon: 'success',
+        title: `Results for ${settings.roundName} are now ${newStatus ? 'LIVE' : 'HIDDEN'}`,
+        showConfirmButton: false, timer: 2000
       });
-      Toast.fire({
-        icon: 'error',
-        title: 'Sync Failed! Checking server...'
-      });
+    } catch (err) {
+      Swal.fire('Error', 'Failed to update result status.', 'error');
     }
   };
 
   useEffect(() => {
-    fetchStats();
-    const interval = setInterval(fetchStats, 10000);
+    fetchData();
+    // Auto-refresh stats every 30 seconds for live feel
+    const interval = setInterval(fetchData, 30000); 
     return () => clearInterval(interval);
   }, []);
 
-  if (loading) return <LoadingLoader message="Syncing Live Data..." type="scan" />;
+  if (loading) return <LoadingLoader message="Connecting to High-Concurrency Engine..." />;
 
   return (
-    <div style={{ ...styles.container, padding: isMobile ? "16px" : "38px" }}>
-      <div style={styles.meshOne}></div>
-      <div style={styles.meshTwo}></div>
-      <div style={styles.meshThree}></div>
-
-      <div style={{ ...styles.header, flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "flex-start" : "center", gap: "18px" }}>
-        <div style={{ zIndex: 2 }}>
-          <h1 style={{ ...styles.mainTitle, fontSize: isMobile ? "28px" : "38px" }}>
-            QuizHub <span style={{ color: "#2563eb" }}>Insights</span>
-          </h1>
+    <div style={styles.container}>
+      {/* Background Mesh Glow */}
+      <div style={styles.glowOverlay}></div>
+      
+      {/* --- HEADER --- */}
+      <header style={styles.header} className="fade-in">
+        <div>
+          <h1 style={styles.mainTitle}>QuizHub <span style={{ color: "#2563eb" }}>Admin</span></h1>
           <div style={styles.statusBadge}>
-            <div className="pulse-dot"></div>
-            Live Monitoring Active
+            <div className="pulse-dot"></div> System Status: {stats.activeStudents} Students Live
           </div>
         </div>
-        <div style={{ ...styles.headerActions, width: isMobile ? "100%" : "auto" }}>
-          <button onClick={fetchStats} className="btn-secondary" style={{ ...styles.secondaryBtn, width: isMobile ? "50%" : "auto" }}>
-            <FaSync /> Refresh
-          </button>
-          <button onClick={() => navigate("/admin/upload")} className="btn-primary" style={{ ...styles.primaryBtn, width: isMobile ? "50%" : "auto" }}>
-            <FaPlus /> New Round
-          </button>
+        <div style={styles.headerActions}>
+          <button onClick={fetchData} className="btn-secondary"><FaSync /> Sync Data</button>
+          <button onClick={() => navigate("/admin/upload")} className="btn-primary"><FaPlus /> New Assessment</button>
+        </div>
+      </header>
+
+      {/* --- RESULT CONTROL PANEL --- */}
+      <div style={styles.controlPanel} className="fade-in">
+        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+          <div style={styles.iconCircle}><FaShieldAlt /></div>
+          <div>
+            <h3 style={styles.panelHeadline}>Result Publication Switch</h3>
+            <p style={styles.panelSub}>Active Round: <b>{settings.roundName || "Not Set"}</b></p>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "25px" }}>
+           <span style={{ fontSize: "14px", fontWeight: "900", color: settings.showResult ? "#10b981" : "#94a3b8" }}>
+             {settings.showResult ? "LIVE ON DASHBOARD" : "HIDDEN FROM STUDENTS"}
+           </span>
+           <label className="switch">
+              <input type="checkbox" checked={settings.showResult} onChange={handleToggleResult} disabled={!settings.roundName} />
+              <span className="slider round"></span>
+           </label>
         </div>
       </div>
 
-      <div style={{ ...styles.statsGrid, gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)" }}>
+      {/* --- STATISTICS GRID --- */}
+      <div style={styles.statsGrid}>
         {[
-          { label: "Active Students", val: stats.totalUsers, icon: <FaUsers />, color: "#3b82f6" },
-          { label: "Questions", val: stats.totalQuestions, icon: <FaQuestionCircle />, color: "#8b5cf6" },
-          { label: "Rounds", val: stats.totalRounds, icon: <FaLayerGroup />, color: "#10b981" },
-          { label: "High Score", val: stats.topScore, icon: <FaTrophy />, color: "#f59e0b" }
-        ].map((item, i) => (
-          <div key={i} className="hover-card" style={styles.statCard}>
-            <div style={{ ...styles.iconWrap, background: item.color + "15", color: item.color }}>
-              {item.icon}
-            </div>
-            <p style={styles.statLabel}>{item.label}</p>
-            <h2 style={styles.statValue}>{item.val}</h2>
+          { label: "Registered Students", val: stats.totalUsers, icon: <FaUsers />, color: "#3b82f6" },
+          { label: "Question Bank", val: stats.totalQuestions, icon: <FaQuestionCircle />, color: "#8b5cf6" },
+          { label: "Quiz Rounds", val: stats.totalRounds, icon: <FaLayerGroup />, color: "#10b981" },
+          { label: "Highest Score", val: stats.topScore, icon: <FaTrophy />, color: "#f59e0b" }
+        ].map((card, i) => (
+          <div key={i} className="stat-card-premium fade-in" style={{ animationDelay: `${i * 0.1}s` }}>
+            <div style={{ ...styles.cardIcon, background: card.color + "15", color: card.color }}>{card.icon}</div>
+            <p style={styles.cardLabel}>{card.label}</p>
+            <h2 style={styles.cardValue}>{card.val}</h2>
           </div>
         ))}
       </div>
 
-      <div style={{ ...styles.mainGrid, gridTemplateColumns: isMobile ? "1fr" : "1.8fr 1fr" }}>
-        <div style={styles.mainCard}>
-          <div style={styles.cardTop}>
-            <h3 style={styles.cardTitle}><FaChartLine /> Performance Curve</h3>
-          </div>
-          <div style={{ height: isMobile ? 260 : 340, marginTop: "18px" }}>
-            <ResponsiveContainer width="100%" height="100%">
+      {/* --- ANALYTICS & FEED SECTION --- */}
+      <div style={styles.contentGrid}>
+        
+        {/* Participation Curve (Graph) */}
+        <div className="glass-panel analytics-box fade-in">
+          <h3 style={styles.panelTitle}><FaChartLine /> Participation Curve</h3>
+          <div style={{ height: 320, width: '100%', marginTop: "25px" }}>
+            <ResponsiveContainer>
               <AreaChart data={graphData}>
                 <defs>
-                  <linearGradient id="blueGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                  <linearGradient id="curveColor" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f7" />
-                <XAxis dataKey="range" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#64748b" }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#64748b" }} />
-                <Tooltip contentStyle={styles.tooltip} />
-                <Area type="monotone" dataKey="count" stroke="#2563eb" strokeWidth={3} fill="url(#blueGradient)" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="range" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
+                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
+                <Tooltip contentStyle={{ borderRadius: '15px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }} />
+                <Area type="monotone" dataKey="count" stroke="#2563eb" strokeWidth={4} fill="url(#curveColor)" animationDuration={1500} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div style={styles.mainCard}>
-          <div style={styles.cardTop}>
-            <h3 style={styles.cardTitle}><FaClock /> Recent Activity</h3>
-          </div>
-          <div style={styles.feedList}>
-            {submissions.length > 0 ? (
-              submissions.slice(0, 5).map((sub, i) => (
-                <div key={i} className="feed-item" style={styles.feedItem}>
-                  <div style={styles.feedAvatar}>{sub.studentName?.charAt(0).toUpperCase()}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={styles.feedRow}>
-                      <span style={styles.studentName}>{sub.studentName}</span>
-                      <span style={styles.scorePill}>{sub.score}/{sub.totalQuestions || sub.quizLimit}</span>
-                    </div>
-                    <p style={styles.feedMeta}>
-                      {sub.quizRound} • {new Date(sub.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </p>
+        {/* Live Submissions Feed (CSS Fixed) */}
+        <div className="glass-panel feed-box fade-in">
+          <h3 style={styles.panelTitle}><FaClock /> Real-time Feed</h3>
+          <div className="feed-scroll-area">
+            {submissions.length > 0 ? submissions.map((sub, i) => (
+              <div key={i} className="feed-row-item">
+                <div className="avatar-circle">{sub.studentName?.[0]?.toUpperCase()}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span className="student-name">{sub.studentName}</span>
+                    <span className="score-badge">{sub.score} / {sub.totalQuestions}</span>
+                  </div>
+                  <div className="round-info">
+                    <FaCircle size={6} color="#3b82f6" /> {sub.quizRound}
                   </div>
                 </div>
-              ))
-            ) : (
-              <div style={styles.emptyBox}>No recent submissions</div>
-            )}
+              </div>
+            )) : <div className="no-data">Waiting for submissions...</div>}
           </div>
-          <button onClick={() => navigate("/admin/students")} className="footer-btn" style={styles.footerBtn}>
-            Analyze All Records
-          </button>
         </div>
       </div>
 
       <style>{`
-        .hover-card { transition: all .28s ease; }
-        .hover-card:hover { transform: translateY(-6px); border-color: #2563eb; box-shadow: 0 22px 40px rgba(37,99,235,.10); }
-        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 16px 28px rgba(37,99,235,.25); }
-        .btn-secondary:hover, .footer-btn:hover { background: #f1f5f9 !important; }
-        .feed-item:hover { background: #f8fafc; transform: translateX(4px); }
-        .pulse-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; margin-right: 8px; animation: pulse 1.8s infinite; }
-        @keyframes pulse { 0% { transform: scale(.9); opacity: 1; } 70% { transform: scale(1.5); opacity: .25; } 100% { transform: scale(.9); opacity: 1; } }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-thumb { background: #dbeafe; border-radius: 20px; }
+        .fade-in { animation: fadeIn 0.6s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .stat-card-premium { background: #fff; padding: 30px; border-radius: 30px; border: 1px solid #f1f5f9; box-shadow: 0 4px 6px rgba(0,0,0,0.01); transition: 0.3s; }
+        .stat-card-premium:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(0,0,0,0.04); }
+        
+        .glass-panel { background: #fff; border-radius: 35px; border: 1px solid #f1f5f9; padding: 30px; display: flex; flex-direction: column; }
+        
+        .btn-primary { background: #0f172a; color: #fff; border: none; padding: 14px 28px; border-radius: 16px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.2s; }
+        .btn-secondary { background: #fff; border: 1.5px solid #e2e8f0; padding: 14px 28px; border-radius: 16px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+
+        .pulse-dot { width: 8px; height: 8px; background: #10b981; border-radius: 50%; animation: pulse-anim 1.5s infinite; margin-right: 10px; }
+        @keyframes pulse-anim { 0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.7); } 70% { box-shadow: 0 0 0 10px rgba(16,185,129,0); } 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); } }
+
+        /* Feed Styling - FIXED */
+        .feed-scroll-area { 
+            margin-top: 25px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 12px; 
+            max-height: 400px; 
+            overflow-y: auto; 
+            padding-right: 8px; 
+        }
+        .feed-scroll-area::-webkit-scrollbar { width: 5px; }
+        .feed-scroll-area::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+
+        .feed-row-item { display: flex; gap: 15px; padding: 18px; background: #f8fafc; border-radius: 20px; border: 1px solid transparent; transition: 0.2s; align-items: center; }
+        .feed-row-item:hover { background: #fff; border-color: #3b82f6; transform: translateX(5px); box-shadow: 0 5px 15px rgba(0,0,0,0.03); }
+        
+        .avatar-circle { width: 45px; height: 45px; background: #eff6ff; color: #3b82f6; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 18px; flex-shrink: 0; }
+        .student-name { font-weight: 800; color: #1e293b; font-size: 15px; }
+        .score-badge { background: #fff; color: #2563eb; padding: 4px 12px; border-radius: 10px; font-size: 13px; font-weight: 900; border: 1px solid #dbeafe; }
+        .round-info { display: flex; align-items: center; gap: 8px; color: #94a3b8; font-size: 12px; margin-top: 4px; font-weight: 700; }
+        .no-data { text-align: center; margin-top: 50px; color: #94a3b8; font-weight: 800; font-style: italic; }
+
+        /* Switch UI */
+        .switch { position: relative; display: inline-block; width: 54px; height: 30px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #e2e8f0; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 22px; width: 22px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        input:checked + .slider { background-color: #2563eb; }
+        input:checked + .slider:before { transform: translateX(24px); }
       `}</style>
     </div>
   );
 }
 
 const styles = {
-  container: { minHeight: "100vh", background: "linear-gradient(135deg, #f8fafc 0%, #eef4ff 50%, #f8fafc 100%)", position: "relative", overflow: "hidden" },
-  meshOne: { position: "absolute", top: "-120px", right: "-100px", width: "320px", height: "320px", borderRadius: "50%", background: "radial-gradient(circle, rgba(37,99,235,.12), transparent 70%)" },
-  meshTwo: { position: "absolute", bottom: "-120px", left: "-100px", width: "300px", height: "300px", borderRadius: "50%", background: "radial-gradient(circle, rgba(139,92,246,.10), transparent 70%)" },
-  meshThree: { position: "absolute", top: "35%", left: "45%", width: "220px", height: "220px", borderRadius: "50%", background: "radial-gradient(circle, rgba(16,185,129,.06), transparent 70%)", transform: "translate(-50%,-50%)" },
-  header: { display: "flex", justifyContent: "space-between", marginBottom: "30px", padding: "24px", borderRadius: "28px", background: "rgba(255,255,255,.78)", border: "1px solid rgba(255,255,255,.7)", backdropFilter: "blur(18px)", boxShadow: "0 18px 40px rgba(15,23,42,.05)", position: "relative", zIndex: 21 },
-  mainTitle: { margin: 0, fontWeight: "900", color: "#0f172a", letterSpacing: "-1px", lineHeight: 1.1 },
-  statusBadge: { marginTop: "12px", display: "inline-flex", alignItems: "center", padding: "8px 14px", borderRadius: "999px", background: "#ffffff", color: "#64748b", fontWeight: "700", fontSize: "12px", boxShadow: "0 10px 22px rgba(15,23,42,.04)" },
-  headerActions: { display: "flex", gap: "12px" },
-  primaryBtn: { border: "none", background: "#2563eb", color: "#fff", padding: "12px 20px", borderRadius: "14px", fontWeight: "800", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" },
-  secondaryBtn: { border: "1px solid #e2e8f0", background: "#fff", color: "#0f172a", padding: "12px 20px", borderRadius: "14px", fontWeight: "800", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" },
-  statsGrid: { display: "grid", gap: "18px", marginBottom: "28px", position: "relative", zIndex: 2 },
-  statCard: { background: "rgba(255,255,255,.88)", border: "1px solid #eef2f7", borderRadius: "24px", padding: "24px", minHeight: "170px", boxShadow: "0 14px 28px rgba(15,23,42,.04)" },
-  iconWrap: { width: "50px", height: "50px", borderRadius: "16px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px", marginBottom: "16px" },
-  statLabel: { margin: 0, fontSize: "13px", color: "#64748b", fontWeight: "700" },
-  statValue: { margin: "8px 0 0 0", fontSize: "32px", fontWeight: "900", color: "#0f172a" },
-  mainGrid: { display: "grid", gap: "22px", position: "relative", zIndex: 21 },
-  mainCard: { background: "rgba(255,255,255,.88)", border: "1px solid #eef2f7", borderRadius: "30px", padding: "28px", boxShadow: "0 18px 38px rgba(15,23,42,.05)", backdropFilter: "blur(14px)" },
-  cardTop: { display: "flex", justifyContent: "space-between", alignItems: "center" },
-  cardTitle: { margin: 0, fontSize: "18px", fontWeight: "800", color: "#1e293b", display: "flex", alignItems: "center", gap: "10px" },
-  tooltip: { borderRadius: "16px", border: "none", boxShadow: "0 18px 28px rgba(0,0,0,.10)", padding: "10px" },
-  feedList: { marginTop: "18px", display: "flex", flexDirection: "column", gap: "10px", maxHeight: "330px", overflowY: "auto" },
-  feedItem: { display: "flex", gap: "12px", padding: "12px", borderRadius: "16px", border: "1px solid #f1f5f9", transition: "0.2s" },
-  feedAvatar: { width: "42px", height: "42px", borderRadius: "14px", background: "#eff6ff", color: "#2563eb", fontWeight: "900", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  feedRow: { display: "flex", justifyContent: "space-between", gap: "10px" },
-  studentName: { fontSize: "14px", fontWeight: "700", color: "#0f172a" },
-  scorePill: { background: "#eff6ff", color: "#2563eb", padding: "4px 10px", borderRadius: "999px", fontSize: "12px", fontWeight: "800" },
-  feedMeta: { margin: "6px 0 0 0", fontSize: "11px", color: "#94a3b8", fontWeight: "700" },
-  emptyBox: { padding: "24px", textAlign: "center", borderRadius: "18px", background: "#f8fafc", color: "#94a3b8", fontWeight: "700" },
-  footerBtn: { width: "100%", marginTop: "18px", border: "none", background: "#f8fafc", color: "#2563eb", padding: "14px", borderRadius: "16px", fontWeight: "800", cursor: "pointer" }
+  container: { minHeight: "100vh", background: "#f8fafc", padding: "40px", position: "relative", overflowX: "hidden" },
+  glowOverlay: { position: "absolute", top: 0, left: 0, right: 0, height: "450px", background: "radial-gradient(circle at 50% -100px, rgba(37,99,235,0.06), transparent)", zIndex: 0 },
+  header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "40px", position: "relative", zIndex: 1 },
+  mainTitle: { fontSize: "36px", fontWeight: "900", margin: 0, letterSpacing: "-1.5px", color: "#0f172a" },
+  statusBadge: { display: "inline-flex", alignItems: "center", padding: "8px 18px", background: "#fff", borderRadius: "100px", fontSize: "13px", fontWeight: "800", border: "1px solid #f1f5f9", marginTop: "12px", boxShadow: "0 2px 5px rgba(0,0,0,0.02)" },
+  headerActions: { display: "flex", gap: "15px" },
+  controlPanel: { background: "#fff", padding: "30px 45px", borderRadius: "30px", border: "1.5px solid #dbeafe", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "35px", position: "relative", zIndex: 1, boxShadow: "0 10px 30px rgba(37,99,235,0.05)" },
+  iconCircle: { width: "55px", height: "55px", background: "#f0f7ff", color: "#2563eb", borderRadius: "16px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px" },
+  panelHeadline: { margin: 0, fontSize: "20px", fontWeight: "900", color: "#0f172a" },
+  panelSub: { margin: 0, fontSize: "14px", color: "#64748b", marginTop: "4px" },
+  statsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "25px", marginBottom: "40px" },
+  cardIcon: { width: "60px", height: "60px", borderRadius: "20px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px", marginBottom: "22px" },
+  cardLabel: { fontSize: "15px", color: "#64748b", fontWeight: "800", margin: 0 },
+  cardValue: { fontSize: "42px", fontWeight: "900", margin: "10px 0 0 0", color: "#0f172a", letterSpacing: "-1px" },
+  contentGrid: { display: "grid", gridTemplateColumns: "1.8fr 1.2fr", gap: "30px" },
+  panelTitle: { fontSize: "20px", fontWeight: "900", margin: 0, display: "flex", alignItems: "center", gap: "12px", color: "#0f172a" }
 };
 
 export default Dashboard;

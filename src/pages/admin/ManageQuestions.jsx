@@ -102,13 +102,14 @@ function ManageQuestions() {
     });
   };
 
-  // 2. Clear Specific Round
+  // 2. Clear Specific Round (✅ 100% DYNAMIC & PATH VARIABLE FIX)
   const handleClearRound = async () => {
     if (selectedFilter === "All") return;
+    
     Swal.fire({
       ...premiumAlert,
       title: `Purge ${selectedFilter}?`,
-      text: "All questions in this specific round will be lost!",
+      text: `All questions in the active round "${selectedFilter}" will be permanently lost!`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonText: 'Clear Round',
@@ -116,11 +117,15 @@ function ManageQuestions() {
       if (result.isConfirmed) {
         try {
           setLoading(true);
-          await API.delete(`/admin/questions/clear-by-round?roundName=${selectedFilter}`);
-          showToast(`${selectedFilter} round data cleared`);
-          fetchData();
-        } catch {
-          showToast('Failed to clear round', 'error');
+          
+          // ✅ FIXED: String template path matching `@PathVariable String roundName` with URL encoding
+          const res = await API.delete(`/admin/questions/round/${encodeURIComponent(selectedFilter)}`);
+          
+          showToast(res.data.message || `${selectedFilter} round data cleared`);
+          fetchData(); // Sync grid lists after purge
+        } catch (err) {
+          console.error("Clear dynamic round error:", err.response?.data);
+          showToast(err.response?.data?.message || 'Failed to clear round', 'error');
           setLoading(false);
         }
       }

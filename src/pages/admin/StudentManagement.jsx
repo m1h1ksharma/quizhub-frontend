@@ -1,14 +1,15 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import API from "../../api/axios";
 import Swal from "sweetalert2";
 import {
-  FaSearch, FaUndo, FaSync, FaFilter, FaExclamationTriangle
+  FaSearch, FaUndo, FaSync, FaFilter, FaExclamationTriangle, FaBullseye
 } from "react-icons/fa";
 import LoadingLoader from "../../components/LoadingLoader";
 
 function StudentManagement() {
   const [students, setStudents] = useState([]);
   const [activeRounds, setActiveRounds] = useState([]);
+  const [currentLiveRound, setCurrentLiveRound] = useState(""); // Holds current active quiz
   const [searchTerm, setSearchTerm] = useState("");
   const [roundFilter, setRoundFilter] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -24,12 +25,25 @@ function StudentManagement() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [res, roundsRes] = await Promise.all([
+      // ✅ Fetching results, all available rounds, and the strict dynamic live active config round
+      const [res, roundsRes, configRes] = await Promise.all([
         API.get("/admin/results/all"),
-        API.get("/admin/questions/rounds")
+        API.get("/admin/questions/rounds"),
+        API.get("/student/check-status") // Gets currently active quizRound configuration
       ]);
+
       setStudents(res.data || []);
       setActiveRounds(roundsRes.data || []);
+      
+      const liveRound = configRes.data.quizRound || configRes.data.round || "";
+      setCurrentLiveRound(liveRound);
+      
+      // 🎯 SMART ACTION: Dropdown ko by default strictly current live running round par lock kar do!
+      if (liveRound) {
+        setRoundFilter(liveRound);
+      } else {
+        setRoundFilter("all");
+      }
     } catch (err) {
       console.error("Fetch failed", err);
     } finally {
@@ -61,7 +75,6 @@ function StudentManagement() {
     Toast.fire({ icon, title: msg });
   };
 
-  // 1. Wipe All Results (Full Reset)
   const handleWipeAll = async () => {
     Swal.fire({
       ...premiumAlert,
@@ -120,11 +133,14 @@ function StudentManagement() {
 
   return (
     <div style={styles.container}>
-      {/* Header with Wipe All Button */}
+      {/* Header */}
       <div style={{ ...styles.header, flexDirection: isMobile ? 'column' : 'row', gap: '15px' }}>
         <div>
           <h1 style={styles.mainTitle}>Candidate <span style={{ color: '#2563eb' }}>Monitor</span></h1>
-          <p style={styles.subtitleText}>Monitoring <b>{filteredStudents.length}</b> participants</p>
+          <p style={styles.subtitleText}>
+            Monitoring <b>{filteredStudents.length}</b> participants 
+            {roundFilter !== "all" && <span> for <b style={{color: '#2563eb'}}>{roundFilter.toUpperCase()}</b></span>}
+          </p>
         </div>
         <div style={{ display: 'flex', gap: '10px', width: isMobile ? '100%' : 'auto' }}>
           <button onClick={handleWipeAll} style={styles.wipeBtn}>
@@ -136,7 +152,7 @@ function StudentManagement() {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Filters Row */}
       <div style={{ ...styles.filterRow, flexDirection: isMobile ? 'column' : 'row' }}>
         <div style={styles.searchBox}>
           <FaSearch color="#cbd5e1" />
@@ -147,16 +163,26 @@ function StudentManagement() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
+        
+        {/* Dynamic Interactive Filter Box */}
         <div style={styles.dropdownBox}>
-          <FaFilter color="#2563eb" size={12} />
+          <FaFilter color="#2563eb" size={12} style={{ marginRight: "8px" }} />
           <select style={styles.select} value={roundFilter} onChange={(e) => setRoundFilter(e.target.value)}>
-            <option value="all">All Rounds</option>
-            {activeRounds.map((r, i) => (<option key={i} value={r}>{r.toUpperCase()}</option>))}
+            <option value="all">📁 Show All Rounds</option>
+            {currentLiveRound && (
+              <option value={currentLiveRound} style={{ fontWeight: 'bold', color: '#2563eb' }}>
+                LIVE ROUND: {currentLiveRound.toUpperCase()}
+              </option>
+            )}
+            {activeRounds
+              .filter(r => r !== currentLiveRound)
+              .map((r, i) => (<option key={i} value={r}>{r.toUpperCase()}</option>))
+            }
           </select>
         </div>
       </div>
 
-      {/* Table */}
+      {/* Table Workspace */}
       <div style={styles.tableCard}>
         <div style={{ overflowX: 'auto' }}>
           <table style={styles.table}>
@@ -171,21 +197,27 @@ function StudentManagement() {
             </thead>
             <tbody>
               {filteredStudents.length > 0 ? (
-                filteredStudents.map((s) => (
-                  <tr key={s.id} className="table-row">
-                    <td style={styles.td}><strong>{s.studentName?.toUpperCase()}</strong></td>
-                    <td style={styles.td}>{s.studentMobile}</td>
-                    <td style={styles.td}><span style={styles.roundBadge}>{s.quizRound}</span></td>
-                    <td style={styles.td}><b style={{ color: '#2563eb' }}>{s.score}</b> / {s.totalQuestions || 0}</td>
-                    <td style={styles.td}>
-                      <button onClick={() => handleResetAccess(s.id, s.studentName)} style={styles.resetBtn}>
-                        <FaUndo /> Reset
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                filteredStudents.map((s) => {
+                  const isCurrentActive = s.quizRound === currentLiveRound;
+                  return (
+                    <tr key={s.id} className="table-row" style={isCurrentActive ? { background: '#f0f6ff' } : {}}>
+                      <td style={styles.td}>
+                        <strong>{s.studentName?.toUpperCase()}</strong>
+                        {isCurrentActive && <span style={styles.liveIndicator}><FaBullseye size={10} /> Live Round</span>}
+                      </td>
+                      <td style={styles.td}>{s.studentMobile}</td>
+                      <td style={styles.td}><span style={styles.roundBadge}>{s.quizRound}</span></td>
+                      <td style={styles.td}><b style={{ color: '#2563eb' }}>{s.score}</b> / {s.totalQuestions || 0}</td>
+                      <td style={styles.td}>
+                        <button onClick={() => handleResetAccess(s.id, s.studentName)} style={styles.resetBtn}>
+                          <FaUndo /> Reset
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })
               ) : (
-                <tr><td colSpan="5" style={styles.emptyTd}>No records found.</td></tr>
+                <tr><td colSpan="5" style={styles.emptyTd}>No candidates found for this specific selection.</td></tr>
               )}
             </tbody>
           </table>
@@ -193,7 +225,7 @@ function StudentManagement() {
       </div>
 
       <style>{`
-        .table-row:hover { background: #f8fafc; }
+        .table-row:hover { background: #f8fafc !important; }
         .swal-premium-popup { border-radius: 24px !important; padding: 2rem !important; }
         .swal-premium-confirm { background: #2563eb !important; color: #fff !important; border-radius: 12px !important; padding: 12px 24px !important; border: none !important; cursor: pointer; }
         .swal-premium-cancel { background: #f1f5f9 !important; color: #64748b !important; border-radius: 12px !important; padding: 12px 24px !important; border: none !important; margin-right: 10px !important; cursor: pointer; }
@@ -206,21 +238,22 @@ const styles = {
   container: { padding: '40px', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Plus Jakarta Sans', sans-serif" },
   header: { display: "flex", justifyContent: "space-between", marginBottom: "35px" },
   mainTitle: { fontSize: '32px', fontWeight: '900', color: '#0f172a', margin: 0 },
-  subtitleText: { color: "#64748b", fontSize: "14px" },
+  subtitleText: { color: "#64748b", fontSize: "14px", marginTop: "4px" },
   syncBtn: { background: "#fff", border: "1px solid #e2e8f0", padding: "12px 20px", borderRadius: "14px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", flex: 1 },
   wipeBtn: { background: "#fef2f2", border: "1px solid #fee2e2", color: "#ef4444", padding: "12px 20px", borderRadius: "14px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", flex: 1 },
   filterRow: { display: "flex", gap: "15px", marginBottom: "30px" },
   searchBox: { flex: 2, background: "#fff", padding: "12px 20px", borderRadius: "16px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: "10px" },
   dropdownBox: { flex: 1, background: "#fff", padding: "0 15px", borderRadius: "16px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center" },
   input: { border: "none", outline: "none", width: "100%", fontWeight: "600" },
-  select: { border: "none", outline: "none", width: "100%", height: "50px", fontWeight: "700" },
+  select: { border: "none", outline: "none", width: "100%", height: "50px", fontWeight: "700", background: "transparent" },
   tableCard: { background: "#fff", borderRadius: "24px", border: "1px solid #f1f5f9", overflow: "hidden" },
   table: { width: "100%", borderCollapse: "collapse" },
   th: { background: "#f8fafc", padding: "18px 25px", textAlign: "left", fontSize: "11px", textTransform: "uppercase", color: "#94a3b8", fontWeight: "800" },
-  td: { padding: "18px 25px", borderBottom: "1px solid #f8fafc", fontSize: "14px" },
+  td: { padding: "18px 25px", borderBottom: "1px solid #f8fafc", fontSize: "14px", verticalAlign: "middle" },
   roundBadge: { background: "#eff6ff", color: "#2563eb", padding: "4px 10px", borderRadius: "8px", fontWeight: "800", fontSize: "11px" },
   resetBtn: { background: "#f8fafc", border: "none", padding: "8px 12px", borderRadius: "10px", cursor: "pointer", color: "#94a3b8", fontWeight: "700", display: "flex", alignItems: "center", gap: "5px" },
-  emptyTd: { padding: "100px", textAlign: "center", color: "#cbd5e1", fontWeight: "600" }
+  emptyTd: { padding: "100px", textAlign: "center", color: "#cbd5e1", fontWeight: "600" },
+  liveIndicator: { marginLeft: '10px', background: '#dbeafe', color: '#1e40af', padding: '2px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '800', display: 'inline-flex', alignItems: 'center', gap: '4px' }
 };
 
 export default StudentManagement;

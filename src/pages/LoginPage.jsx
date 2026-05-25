@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom"; // Link add kiya forgot password ke liye
 import API from "../api/axios";
 import Swal from "sweetalert2";
 import {
@@ -51,12 +51,20 @@ function LoginPage() {
     Toast.fire({ icon, title: msg });
   };
 
+  const resetForm = () => {
+    setMobile(""); setNames([]); setSelectedName(""); setPassword("");
+    setEmail(""); setStep(1);
+    setRegData({ 
+      name: "", fatherName: "", email: "", schoolName: "", 
+      city: "", area: "", classLevel: "12th", stream: "" 
+    });
+  };
+
   const handleMobileChange = async (e) => {
     const val = e.target.value;
     setMobile(val);
     if (val.length === 10 && !isAdmin && mode === "login") {
       try {
-        // Path sync with backend[cite: 2]
         const res = await API.post("/auth/check-mobile", { mobileNumber: val });
         setNames(res.data);
         if (res.data.length > 0) setSelectedName(res.data[0]);
@@ -87,13 +95,11 @@ function LoginPage() {
           password: password.trim(),
           role: "STUDENT"
         };
-        // API Base path sync[cite: 2]
         await API.post("/auth/register", payload);
         showToast('Registration Successful! Login Now');
         setMode("login");
         resetForm();
       } else {
-        // Dynamic endpoint selection[cite: 2]
         const endpoint = isAdmin ? "/auth/login-admin" : "/auth/login-student";
         const payload = isAdmin
           ? { email: email.trim(), password: password.trim() }
@@ -114,15 +120,6 @@ function LoginPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const resetForm = () => {
-    setMobile(""); setNames([]); setSelectedName(""); setPassword("");
-    setEmail(""); setStep(1);
-    setRegData({ 
-      name: "", fatherName: "", email: "", schoolName: "", 
-      city: "", area: "", classLevel: "12th", stream: "" 
-    });
   };
 
   return (
@@ -190,6 +187,14 @@ function LoginPage() {
                     <div className="form-animation" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                       <div style={styles.inputWrapper}><FaUser style={styles.icon}/><select value={selectedName} onChange={e => setSelectedName(e.target.value)} style={styles.select}>{names.map((n, i) => <option key={i} value={n}>{n.toUpperCase()}</option>)}</select></div>
                       <div style={styles.inputWrapper}><FaLock style={styles.icon}/><input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required style={styles.input}/></div>
+                    </div>
+                  )}
+                  {/* 🔥 ADDED: Forgot Password Link */}
+                  {!isAdmin && (
+                    <div style={{ textAlign: 'right', marginTop: '5px' }}>
+                      <Link to="/forgot-password" style={{ color: '#2563eb', fontSize: '13px', fontWeight: '700', textDecoration: 'none' }}>
+                        Forgot Password?
+                      </Link>
                     </div>
                   )}
                 </>
